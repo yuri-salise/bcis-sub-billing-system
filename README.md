@@ -51,7 +51,11 @@ Detailed engineering specifications are located in the [`docs/`](./docs) directo
 - [**System Architecture Specification**](./docs/architecture.md): Network topology, tiered architecture, component interactions, data flows, and concurrency handling.
 - [**Business & Financial Rules**](./docs/business-rules.md): Monetary mathematics, invoice lifecycles, FIFO payment allocations, GCash queue logic, and remittance reconciliation.
 - [**Role-Based Access Control (RBAC) Matrix**](./docs/rbac-matrix.md): Master permissions matrix across the 7 user roles and server-side hook enforcement.
+- [**API Design Specification**](./docs/api-design.md): REST endpoint catalog, Zod request/response schemas, error envelopes, and HTTP status codes.
+- [**Database Design Specification**](./docs/database-design.md): Normalized relational schemas, DDL, table constraints, composite indexes, and centavo types.
 - [**Testing Strategy & QA Plan**](./docs/testing-strategy.md): Unit, integration, and E2E test pyramids, continuous verification protocol, and detailed AT-01 through AT-12 acceptance test specifications.
+- [**Security Review & Failure Mode Audits**](./docs/security-review.md): Electron desktop isolation, LAN threat mitigation, and audit against the 14 critical failure modes.
+- [**Deployment & LAN Setup Guide**](./docs/deployment-guide.md): Central server setup, Windows Firewall rules, multi-client installation, and disaster recovery.
 - [**Architecture Decision Records (ADRs)**](./docs/architecture-decisions.md): Formal rationale for technology selections, monetary standards, and security boundaries.
 - [**Project Rules & Development Loop**](./.agents/rules/bcis-project.md): Mandatory agent coding rules, definition of done, and development loop.
 

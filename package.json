@@ -1,0 +1,28 @@
+{
+  "name": "bcis-sub-billing-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bukidnon Cable and Internet Services (BCIS) Subscription Billing and Collection System",
+  "scripts": {
+    "build": "pnpm --recursive run build",
+    "typecheck": "pnpm --recursive run typecheck",
+    "test": "pnpm --recursive run test",
+    "test:unit": "pnpm --filter @bcis/domain test",
+    "test:integration": "pnpm --filter @bcis/api test",
+    "dev:api": "pnpm --filter @bcis/api dev",
+    "dev:desktop": "pnpm --filter @bcis/desktop dev",
+    "db:generate": "pnpm --filter @bcis/api db:generate",
+    "db:push": "pnpm --filter @bcis/api db:push",
+    "db:migrate": "pnpm --filter @bcis/api db:migrate"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.7"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild"
+    ]
+  }
+}
