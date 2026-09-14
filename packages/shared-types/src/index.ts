@@ -26,6 +26,9 @@ export type PermissionCode =
   | 'subscribers.write'
   | 'service_accounts.read'
   | 'service_accounts.write'
+  | 'invoices.read'
+  | 'invoices.generate'
+  | 'invoices.void'
   | 'billing.view'
   | 'billing.generate'
   | 'billing.adjust'
@@ -266,5 +269,79 @@ export interface ServiceAccountDto {
   subscriber?: SubscriberDto;
   plan?: ServicePlanDto;
   installationAddress?: SubscriberAddressDto | null;
+}
+
+// Invoice Item DTO
+export interface InvoiceItemDto {
+  id: string;
+  invoiceId: string;
+  itemType: string;
+  description: string;
+  amountCentavos: number;
+  quantity: number;
+}
+
+// Invoice DTO
+export interface InvoiceDto {
+  id: string;
+  invoiceNumber: string;
+  serviceAccountId: string;
+  subscriberId: string;
+  billingPeriodStart: string;
+  billingPeriodEnd: string;
+  issueDate: string;
+  dueDate: string;
+  subtotalCentavos: number;
+  vatCentavos: number;
+  totalDueCentavos: number;
+  allocatedCentavos: number;
+  remainingBalanceCentavos: number;
+  status: string;
+  notes: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  subscriber?: {
+    id: string;
+    accountNumber: string;
+    firstName: string;
+    lastName: string;
+    businessName: string | null;
+  };
+  serviceAccount?: {
+    id: string;
+    serviceAccountNumber: string;
+    status: string;
+    planName?: string;
+  };
+  items?: InvoiceItemDto[];
+  lineItems?: InvoiceItemDto[];
+}
+
+// Detailed Invoice with relations and payment allocations
+export interface InvoiceDetailDto extends InvoiceDto {
+  subscriber: SubscriberDto;
+  serviceAccount: ServiceAccountDto;
+  lineItems: InvoiceItemDto[];
+  paymentAllocations: Array<{
+    id: string;
+    paymentId: string;
+    allocatedCentavos: number;
+    paymentNumber?: string;
+    paymentDate?: string | Date;
+    paymentMethod?: string;
+  }>;
+}
+
+// Bulk Batch Generation Result DTO
+export interface GenerateInvoiceBatchResultDto {
+  totalProcessed: number;
+  generatedCount: number;
+  skippedCount: number;
+  invoices: InvoiceDto[];
+  skippedAccounts?: Array<{
+    serviceAccountId: string;
+    serviceAccountNumber: string;
+    reason: string;
+  }>;
 }
 

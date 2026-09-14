@@ -4,6 +4,7 @@ import {
   formatCurrency,
   centavosToPesos,
   calculateProration,
+  calculateActivationProration,
 } from '../src/money.js';
 
 describe('Financial Arithmetic & Integer Centavos (ADR-004)', () => {
@@ -74,4 +75,48 @@ describe('Financial Arithmetic & Integer Centavos (ADR-004)', () => {
       expect(calculateProration(2000, 1, 3)).toBe(667);
     });
   });
+
+  describe('calculateActivationProration', () => {
+    it('returns full rate without proration if activated on or before period start', () => {
+      const res = calculateActivationProration(99900, '2026-09-01', '2026-09-30', '2026-08-15');
+      expect(res.isProrated).toBe(false);
+      expect(res.activeDays).toBe(30);
+      expect(res.totalDays).toBe(30);
+      expect(res.proratedAmountCentavos).toBe(99900);
+
+      const resOnStart = calculateActivationProration(99900, '2026-09-01', '2026-09-30', '2026-09-01');
+      expect(resOnStart.isProrated).toBe(false);
+      expect(resOnStart.proratedAmountCentavos).toBe(99900);
+    });
+
+    it('correctly prorates when activated mid-period', () => {
+      // Activated on Sept 16, 2026 in 30-day period: 15 active days (16 to 30)
+      const res = calculateActivationProration(99900, '2026-09-01', '2026-09-30', '2026-09-16');
+      expect(res.isProrated).toBe(true);
+      expect(res.activeDays).toBe(15);
+      expect(res.totalDays).toBe(30);
+      expect(res.proratedAmountCentavos).toBe(49950);
+    });
+
+    it('returns 0 amount if activation is after period end', () => {
+      const res = calculateActivationProration(99900, '2026-09-01', '2026-09-30', '2026-10-01');
+      expect(res.isProrated).toBe(true);
+      expect(res.activeDays).toBe(0);
+      expect(res.proratedAmountCentavos).toBe(0);
+    });
+
+    it('rejects negative monthlyRecurringCentavos with an Error', () => {
+      expect(() =>
+        calculateActivationProration(-1000, '2026-09-01', '2026-09-30', '2026-09-15')
+      ).toThrowError(/cannot be negative/);
+    });
+
+    it('handles ISO strings with whitespace cleanly', () => {
+      const res = calculateActivationProration(99900, ' 2026-09-01 ', '2026-09-30T00:00:00Z', ' 2026-09-16 ');
+      expect(res.isProrated).toBe(true);
+      expect(res.activeDays).toBe(15);
+      expect(res.proratedAmountCentavos).toBe(49950);
+    });
+  });
 });
+

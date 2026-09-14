@@ -17,8 +17,9 @@ export interface AuditLogInput {
 /**
  * Persists an immutable structured audit log entry into PostgreSQL.
  */
-export async function writeAuditLog(entry: AuditLogInput): Promise<void> {
-  await db.insert(auditLogs).values({
+export async function writeAuditLog(entry: AuditLogInput, tx?: any): Promise<void> {
+  const client = tx || db;
+  await client.insert(auditLogs).values({
     actorId: entry.actorId ?? null,
     actorName: entry.actorName,
     action: entry.action,

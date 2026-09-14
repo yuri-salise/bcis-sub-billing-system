@@ -94,3 +94,70 @@ export function calculateProration(
   const unrounded = (monthlyRecurringCentavos * activeDays) / totalDaysInMonth;
   return Math.round(unrounded);
 }
+
+/**
+ * Calculates prorated subscription charge based on service activation date within a billing period.
+ * If activation occurred on or before period start, no proration (full monthly rate).
+ * If activation occurred within the period (activationDate > periodStart && activationDate <= periodEnd),
+ * active days = (periodEnd - activationDate + 1), total days = (periodEnd - periodStart + 1).
+ */
+export function calculateActivationProration(
+  monthlyRecurringCentavos: number,
+  periodStartStr: string,
+  periodEndStr: string,
+  activationDateStr: string
+): { activeDays: number; totalDays: number; proratedAmountCentavos: number; isProrated: boolean } {
+  if (monthlyRecurringCentavos < 0) {
+    throw new Error('Monthly recurring centavos cannot be negative');
+  }
+
+  function parseDateToUtcMs(str: string): number {
+    const clean = str.split('T')[0].trim();
+    const parts = clean.split('-').map((p) => parseInt(p, 10));
+    if (parts.length !== 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) {
+      throw new Error(`Invalid date format: ${str}. Expected YYYY-MM-DD.`);
+    }
+    return Date.UTC(parts[0], parts[1] - 1, parts[2]);
+  }
+
+  const startMs = parseDateToUtcMs(periodStartStr);
+  const endMs = parseDateToUtcMs(periodEndStr);
+  const actMs = parseDateToUtcMs(activationDateStr);
+
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const totalDays = Math.round((endMs - startMs) / msPerDay) + 1;
+
+  if (totalDays <= 0) {
+    throw new Error('Billing period end must be after or equal to billing period start');
+  }
+
+  // If activated before or at the start of the billing period: full period
+  if (actMs <= startMs) {
+    return {
+      activeDays: totalDays,
+      totalDays,
+      proratedAmountCentavos: monthlyRecurringCentavos,
+      isProrated: false,
+    };
+  }
+
+  // If activated after billing period ends: not active in this cycle
+  if (actMs > endMs) {
+    return {
+      activeDays: 0,
+      totalDays,
+      proratedAmountCentavos: 0,
+      isProrated: true,
+    };
+  }
+
+  const activeDays = Math.round((endMs - actMs) / msPerDay) + 1;
+  const proratedAmountCentavos = calculateProration(monthlyRecurringCentavos, activeDays, totalDays);
+
+  return {
+    activeDays,
+    totalDays,
+    proratedAmountCentavos,
+    isProrated: true,
+  };
+}

@@ -232,3 +232,80 @@ export type UpdateServiceAccountInput = z.infer<typeof updateServiceAccountSchem
 export type ChangeServiceAccountStatusInput = z.infer<typeof changeServiceAccountStatusSchema>;
 export type ServiceAccountQueryInput = z.infer<typeof serviceAccountQuerySchema>;
 
+// Invoice Line Item Type Enum
+export const invoiceItemTypeEnum = z.enum([
+  'PLAN_FEE',
+  'INSTALLATION',
+  'DEVICE',
+  'PENALTY',
+  'DISCOUNT',
+  'ADJUSTMENT',
+  'OTHER',
+]);
+
+// Invoice Line Item Input Schema
+export const invoiceLineItemInputSchema = z.object({
+  itemType: invoiceItemTypeEnum,
+  description: z.string().trim().min(1, 'Description is required').max(255),
+  amountCentavos: z.number().int('Amount must be an integer centavos').positive('Amount must be positive centavos'),
+  quantity: z.number().int().positive().default(1),
+});
+
+// Invoice Status Enum
+export const invoiceStatusEnum = z.enum([
+  'DRAFT',
+  'UNPAID',
+  'PARTIALLY_PAID',
+  'PAID',
+  'OVERDUE',
+  'VOID',
+  'VOIDED',
+  'CREDITED',
+]);
+
+// Invoice Generation Schema (Single account or batch for active accounts)
+export const generateInvoiceSchema = z
+  .object({
+    serviceAccountId: z.string().uuid('Invalid service account ID').optional(),
+    billingPeriodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Billing period start must be YYYY-MM-DD'),
+    billingPeriodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Billing period end must be YYYY-MM-DD'),
+    issueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Issue date must be YYYY-MM-DD').optional(),
+    dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Due date must be YYYY-MM-DD').optional(),
+    notes: z.string().max(500).optional().nullable(),
+    customLineItems: z.array(invoiceLineItemInputSchema).optional(),
+    applyAdvanceCredit: z.boolean().default(true),
+  })
+  .refine((data) => data.billingPeriodStart <= data.billingPeriodEnd, {
+    message: 'Billing period start date must be on or before billing period end date',
+    path: ['billingPeriodEnd'],
+  })
+  .refine((data) => !data.dueDate || !data.issueDate || data.dueDate >= data.issueDate, {
+    message: 'Due date must be on or after issue date',
+    path: ['dueDate'],
+  });
+
+// Invoice Query Schema
+export const invoiceQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+  serviceAccountId: z.string().uuid().optional(),
+  subscriberId: z.string().uuid().optional(),
+  status: invoiceStatusEnum.optional(),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Start date must be YYYY-MM-DD').optional(),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'End date must be YYYY-MM-DD').optional(),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Due date must be YYYY-MM-DD').optional(),
+  search: z.string().trim().optional(),
+  sortBy: z.enum(['createdAt', 'invoiceNumber', 'dueDate', 'issueDate', 'totalDueCentavos']).default('createdAt'),
+  sortOrder: z.enum(['asc', 'desc']).default('desc'),
+});
+
+// Void Invoice Schema
+export const voidInvoiceSchema = z.object({
+  reason: z.string().trim().min(5, 'Reason for voiding must be at least 5 characters').max(500),
+});
+
+export type InvoiceLineItemInput = z.infer<typeof invoiceLineItemInputSchema>;
+export type GenerateInvoiceInput = z.infer<typeof generateInvoiceSchema>;
+export type InvoiceQueryInput = z.infer<typeof invoiceQuerySchema>;
+export type VoidInvoiceInput = z.infer<typeof voidInvoiceSchema>;
+

@@ -8,6 +8,7 @@ import { userRoutes } from './modules/users/users.routes.js';
 import { planRoutes } from './modules/plans/plans.routes.js';
 import { subscriberRoutes } from './modules/subscribers/subscribers.routes.js';
 import { serviceAccountRoutes } from './modules/service-accounts/service-accounts.routes.js';
+import { invoiceRoutes } from './modules/invoices/invoices.routes.js';
 
 export function buildServer(): FastifyInstance {
   const server = Fastify({
@@ -46,6 +47,8 @@ export function buildServer(): FastifyInstance {
   server.register(planRoutes, { prefix: '/api/v1/service-plans' });
   server.register(subscriberRoutes, { prefix: '/api/v1/subscribers' });
   server.register(serviceAccountRoutes, { prefix: '/api/v1/service-accounts' });
+  server.register(invoiceRoutes, { prefix: '/api/v1/invoices' });
+  server.register(invoiceRoutes, { prefix: '/api/v1/billing' });
 
   // 404 Not Found handler adhering to RFC 7807 unified envelope
   server.setNotFoundHandler((request, reply) => {

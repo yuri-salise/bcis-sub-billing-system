@@ -24,6 +24,12 @@ const PERMISSION_ALIASES: Record<string, string[]> = {
   'service_account.view': ['service_account.view', 'service_accounts.read'],
   'service_account.create': ['service_account.create', 'service_accounts.write'],
   'service_account.update': ['service_account.update', 'service_accounts.write'],
+  'invoices.read': ['invoices.read', 'billing.view'],
+  'billing.view': ['billing.view', 'invoices.read'],
+  'invoices.void': ['invoices.void', 'billing.void'],
+  'billing.void': ['billing.void', 'invoices.void'],
+  'billing.generate': ['billing.generate', 'invoices.generate'],
+  'invoices.generate': ['invoices.generate', 'billing.generate'],
 };
 
 export function satisfiesPermission(perm: string, userPermissions: string[]): boolean {
