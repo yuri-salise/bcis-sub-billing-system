@@ -9,9 +9,18 @@ export const gcashRefRegex = /^\d{11,16}$/;
 
 // Login Schema
 export const loginSchema = z.object({
-  username: z.string().min(3, 'Username must be at least 3 characters').max(64),
+  username: z.string().trim().min(3, 'Username must be at least 3 characters').max(64),
   password: z.string().min(6, 'Password must be at least 6 characters'),
 });
+
+// Unlock Screen Schema
+export const unlockSchema = z.object({
+  password: z.string().min(1, 'Password is required'),
+});
+
+export type LoginInput = z.infer<typeof loginSchema>;
+export type UnlockInput = z.infer<typeof unlockSchema>;
+
 
 // Subscriber Registration Schema
 export const createSubscriberSchema = z.object({

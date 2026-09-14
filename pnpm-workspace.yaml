@@ -2,9 +2,7 @@ packages:
   - 'apps/*'
   - 'packages/*'
 
-onlyBuiltDependencies:
-  - electron
-  - esbuild
 allowBuilds:
+  argon2: true
   electron: true
   esbuild: true

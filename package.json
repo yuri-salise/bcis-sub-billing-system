@@ -13,7 +13,8 @@
     "dev:desktop": "pnpm --filter @bcis/desktop dev",
     "db:generate": "pnpm --filter @bcis/api db:generate",
     "db:push": "pnpm --filter @bcis/api db:push",
-    "db:migrate": "pnpm --filter @bcis/api db:migrate"
+    "db:migrate": "pnpm --filter @bcis/api db:migrate",
+    "db:seed": "pnpm --filter @bcis/api db:seed"
   },
   "devDependencies": {
     "typescript": "^5.8.2",

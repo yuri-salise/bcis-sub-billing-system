@@ -147,3 +147,37 @@ export interface ApiErrorResponse {
   details?: Array<{ field: string; issue: string }>;
   timestamp: string;
 }
+
+// User Information returned in Auth responses
+export interface AuthUser {
+  id: string;
+  username: string;
+  fullName: string;
+  email: string | null;
+  roles: string[];
+  permissions: string[];
+}
+
+// JWT Token Payload
+export interface AuthTokenPayload {
+  id: string;
+  username: string;
+  fullName: string;
+  roles: string[];
+  permissions: string[];
+  jti?: string;
+  iat?: number;
+  exp?: number;
+}
+
+// Response from POST /api/v1/auth/login
+export interface LoginResponse {
+  token: string;
+  user: AuthUser;
+}
+
+// Response from GET /api/v1/auth/me
+export interface AuthMeResponse {
+  user: AuthUser;
+}
+
