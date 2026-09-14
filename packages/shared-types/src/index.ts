@@ -20,6 +20,12 @@ export type PermissionCode =
   | 'service_account.update'
   | 'service_plan.view'
   | 'service_plan.manage'
+  | 'plans.read'
+  | 'plans.write'
+  | 'subscribers.read'
+  | 'subscribers.write'
+  | 'service_accounts.read'
+  | 'service_accounts.write'
   | 'billing.view'
   | 'billing.generate'
   | 'billing.adjust'
@@ -179,5 +185,86 @@ export interface LoginResponse {
 // Response from GET /api/v1/auth/me
 export interface AuthMeResponse {
   user: AuthUser;
+}
+
+// Pagination metadata
+export interface PaginationMeta {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+// Service Plan DTO
+export interface ServicePlanDto {
+  id: string;
+  planCode: string;
+  code: string;
+  name: string;
+  serviceTypeId: string;
+  serviceType: string;
+  monthlyFeeCentavos: number;
+  monthlyRecurringCentavos: number;
+  installationFeeCentavos: number;
+  bandwidthMbps: number | null;
+  channelCount: number | null;
+  isActive: boolean;
+  createdAt: Date | string;
+}
+
+// Subscriber Address DTO
+export interface SubscriberAddressDto {
+  id: string;
+  subscriberId: string;
+  addressType: string;
+  streetAddress: string;
+  barangay: string;
+  municipality: string;
+  province: string;
+  postalCode: string | null;
+  latitude: string | number | null;
+  longitude: string | number | null;
+  isPrimary: boolean;
+}
+
+// Subscriber DTO
+export interface SubscriberDto {
+  id: string;
+  accountNumber: string;
+  firstName: string;
+  middleName: string | null;
+  lastName: string;
+  businessName: string | null;
+  contactNumber: string;
+  alternateContact: string | null;
+  email: string | null;
+  idType: string | null;
+  idNumber: string | null;
+  advanceCreditCentavos: number;
+  status: string;
+  notes: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  addresses?: SubscriberAddressDto[];
+  primaryAddress?: SubscriberAddressDto | null;
+}
+
+// Service Account DTO
+export interface ServiceAccountDto {
+  id: string;
+  serviceAccountNumber: string;
+  subscriberId: string;
+  servicePlanId: string;
+  installationAddressId: string | null;
+  collectorId: string | null;
+  billingDayOfMonth: number;
+  currentRateCentavos: number;
+  status: string;
+  activationDate: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  subscriber?: SubscriberDto;
+  plan?: ServicePlanDto;
+  installationAddress?: SubscriberAddressDto | null;
 }
 

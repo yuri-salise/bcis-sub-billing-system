@@ -9,6 +9,40 @@ import { PermissionCode, UserRole } from '@bcis/shared-types';
  * - Non-superadmins must possess the required permission(s).
  * - Denials emit RFC 7807 unified error envelope with HTTP 403 Forbidden.
  */
+const PERMISSION_ALIASES: Record<string, string[]> = {
+  'plans.read': ['plans.read', 'service_plan.view'],
+  'plans.write': ['plans.write', 'service_plan.manage'],
+  'service_plan.view': ['service_plan.view', 'plans.read'],
+  'service_plan.manage': ['service_plan.manage', 'plans.write'],
+  'subscribers.read': ['subscribers.read', 'subscriber.view'],
+  'subscribers.write': ['subscribers.write', 'subscriber.create', 'subscriber.update'],
+  'subscriber.view': ['subscriber.view', 'subscribers.read'],
+  'subscriber.create': ['subscriber.create', 'subscribers.write'],
+  'subscriber.update': ['subscriber.update', 'subscribers.write'],
+  'service_accounts.read': ['service_accounts.read', 'service_account.view'],
+  'service_accounts.write': ['service_accounts.write', 'service_account.create', 'service_account.update'],
+  'service_account.view': ['service_account.view', 'service_accounts.read'],
+  'service_account.create': ['service_account.create', 'service_accounts.write'],
+  'service_account.update': ['service_account.update', 'service_accounts.write'],
+};
+
+export function satisfiesPermission(perm: string, userPermissions: string[]): boolean {
+  if (userPermissions.includes(perm)) return true;
+  const aliases = PERMISSION_ALIASES[perm];
+  if (aliases) {
+    return aliases.some((a) => userPermissions.includes(a));
+  }
+  return false;
+}
+
+/**
+ * Fastify preHandler hook factory enforcing server-side Role-Based Access Control (RBAC).
+ * Follows the BCIS RBAC specification (docs/rbac-matrix.md Section 5.1).
+ * 
+ * - ROLE_SUPER_ADMIN bypasses granular checks with unrestricted authority.
+ * - Non-superadmins must possess the required permission(s).
+ * - Denials emit RFC 7807 unified error envelope with HTTP 403 Forbidden.
+ */
 export function requirePermission(
   permission: PermissionCode | PermissionCode[],
   mode: 'any' | 'all' = 'any'
@@ -44,8 +78,8 @@ export function requirePermission(
 
     const hasPermission =
       mode === 'all'
-        ? permissionsList.every((p) => userPermissions.includes(p))
-        : permissionsList.some((p) => userPermissions.includes(p));
+        ? permissionsList.every((p) => satisfiesPermission(p, userPermissions))
+        : permissionsList.some((p) => satisfiesPermission(p, userPermissions));
 
     if (!hasPermission) {
       request.log.warn(
@@ -59,7 +93,7 @@ export function requirePermission(
         'RBAC Access Denied'
       );
 
-      const missing = permissionsList.filter((p) => !userPermissions.includes(p));
+      const missing = permissionsList.filter((p) => !satisfiesPermission(p, userPermissions));
       return reply.status(403).send({
         statusCode: 403,
         error: 'Forbidden',

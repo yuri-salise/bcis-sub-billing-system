@@ -1,8 +1,8 @@
 import { pool, db } from './client.js';
-import { users, roles, permissions, rolePermissions, userRoles } from './schema.js';
+import { users, roles, permissions, rolePermissions, userRoles, serviceTypes } from './schema.js';
 import { hashPassword } from '../utils/password.js';
 import { PermissionCode, UserRole } from '@bcis/shared-types';
-import { eq } from 'drizzle-orm';
+import { eq, notInArray } from 'drizzle-orm';
 import { fileURLToPath } from 'url';
 
 export interface PermissionSeedData {
@@ -185,8 +185,22 @@ export const ROLE_PERMISSION_MAPPING: Record<UserRole, PermissionCode[]> = {
 export async function seedDatabase(): Promise<void> {
   console.log('[Seed] Starting database seeding...');
 
+  // 0. Seed Service Types
+  const defaultServiceTypes = [
+    { code: 'INTERNET', name: 'High-Speed Broadband Internet' },
+    { code: 'CABLE', name: 'Digital Cable TV' },
+    { code: 'CABLE_TV', name: 'Digital Cable TV' },
+    { code: 'BUNDLE', name: 'Internet + Cable TV Bundle' },
+    { code: 'COMBO', name: 'Internet + Cable TV Bundle' },
+  ];
+  for (const st of defaultServiceTypes) {
+    await db.insert(serviceTypes).values(st).onConflictDoNothing({ target: serviceTypes.code });
+  }
+
   // 1. Seed Permissions
   console.log(`[Seed] Inserting ${BASE_PERMISSIONS.length} permissions...`);
+  const validCodes = BASE_PERMISSIONS.map((p) => p.code);
+  await db.delete(permissions).where(notInArray(permissions.code, validCodes));
   for (const perm of BASE_PERMISSIONS) {
     await db
       .insert(permissions)

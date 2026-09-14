@@ -24,20 +24,170 @@ export type UnlockInput = z.infer<typeof unlockSchema>;
 
 // Subscriber Registration Schema
 export const createSubscriberSchema = z.object({
-  firstName: z.string().min(1, 'First name is required').max(64),
-  middleName: z.string().max(64).optional(),
-  lastName: z.string().min(1, 'Last name is required').max(64),
-  businessName: z.string().max(128).optional(),
-  contactNumber: z.string().regex(philippinePhoneRegex, 'Must be a valid Philippine mobile number (e.g. 09171234567)'),
-  alternateContact: z.string().max(32).optional(),
-  email: z.string().email('Invalid email address').max(128).optional(),
-  streetAddress: z.string().min(3, 'Street address is required'),
-  barangay: z.string().min(1, 'Barangay is required').max(64),
-  municipality: z.string().default('Malaybalay'),
-  province: z.string().default('Bukidnon'),
-  postalCode: z.string().default('8700'),
-  notes: z.string().optional(),
+  accountNumber: z.string().trim().max(32).optional(),
+  firstName: z.string().trim().min(1, 'First name is required').max(64),
+  middleName: z.string().trim().max(64).optional().nullable(),
+  lastName: z.string().trim().min(1, 'Last name is required').max(64),
+  businessName: z.string().trim().max(128).optional().nullable(),
+  contactNumber: z.string().trim().regex(philippinePhoneRegex, 'Must be a valid Philippine mobile number (e.g. 09171234567)'),
+  alternateContact: z.string().trim().max(32).optional().nullable(),
+  email: z.string().trim().email('Invalid email address').max(128).optional().nullable().or(z.literal('')),
+  idType: z.string().trim().max(32).optional().nullable(),
+  idNumber: z.string().trim().max(64).optional().nullable(),
+  streetAddress: z.string().trim().min(3, 'Street address is required'),
+  barangay: z.string().trim().min(1, 'Barangay is required').max(64),
+  municipality: z.string().trim().default('Malaybalay'),
+  province: z.string().trim().default('Bukidnon'),
+  postalCode: z.string().trim().default('8700'),
+  latitude: z.number().optional().nullable(),
+  longitude: z.number().optional().nullable(),
+  notes: z.string().optional().nullable(),
 });
+
+// Subscriber Update Schema
+export const updateSubscriberSchema = z.object({
+  firstName: z.string().trim().min(1).max(64).optional(),
+  middleName: z.string().trim().max(64).optional().nullable(),
+  lastName: z.string().trim().min(1).max(64).optional(),
+  businessName: z.string().trim().max(128).optional().nullable(),
+  contactNumber: z.string().trim().regex(philippinePhoneRegex, 'Must be a valid Philippine mobile number (e.g. 09171234567)').optional(),
+  alternateContact: z.string().trim().max(32).optional().nullable(),
+  email: z.string().trim().email('Invalid email address').max(128).optional().nullable().or(z.literal('')),
+  idType: z.string().trim().max(32).optional().nullable(),
+  idNumber: z.string().trim().max(64).optional().nullable(),
+  status: z.enum(['ACTIVE', 'INACTIVE', 'TERMINATED', 'ARCHIVED']).optional(),
+  notes: z.string().optional().nullable(),
+  // Optional primary address update
+  streetAddress: z.string().trim().min(3).optional(),
+  barangay: z.string().trim().min(1).max(64).optional(),
+  municipality: z.string().trim().optional(),
+  province: z.string().trim().optional(),
+  postalCode: z.string().trim().optional(),
+});
+
+// Subscriber Query Schema
+export const subscriberQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+  search: z.string().trim().optional(),
+  name: z.string().trim().optional(),
+  phone: z.string().trim().optional(),
+  email: z.string().trim().optional(),
+  status: z.enum(['ACTIVE', 'INACTIVE', 'TERMINATED', 'ARCHIVED']).optional(),
+  barangay: z.string().trim().optional(),
+  sortBy: z.enum(['createdAt', 'accountNumber', 'lastName', 'firstName']).default('createdAt'),
+  sortOrder: z.enum(['asc', 'desc']).default('desc'),
+});
+
+// Service Plan Service Type Enum
+export const serviceTypeEnum = z.enum(['CABLE', 'INTERNET', 'BUNDLE', 'CABLE_TV', 'COMBO'], {
+  errorMap: () => ({ message: 'Service type must be CABLE, INTERNET, or BUNDLE' }),
+});
+
+// Service Plan Creation Schema
+export const createPlanSchema = z
+  .object({
+    name: z.string().trim().min(2, 'Plan name must be at least 2 characters').max(128),
+    planCode: z.string().trim().min(2, 'Plan code must be at least 2 characters').max(32).optional(),
+    code: z.string().trim().min(2, 'Plan code must be at least 2 characters').max(32).optional(),
+    serviceType: serviceTypeEnum,
+    monthlyFeeCentavos: z.number().int('Monthly fee must be an integer centavos').nonnegative('Monthly fee cannot be negative').optional(),
+    monthlyRecurringCentavos: z.number().int('Monthly fee must be an integer centavos').nonnegative('Monthly fee cannot be negative').optional(),
+    installationFeeCentavos: z.number().int('Installation fee must be an integer centavos').nonnegative('Installation fee cannot be negative').default(0),
+    bandwidthMbps: z.number().int('Bandwidth must be an integer').positive('Bandwidth must be positive').optional().nullable(),
+    channelCount: z.number().int('Channel count must be an integer').positive('Channel count must be positive').optional().nullable(),
+    isActive: z.boolean().default(true),
+  })
+  .refine(
+    (data) => data.monthlyFeeCentavos !== undefined || data.monthlyRecurringCentavos !== undefined,
+    {
+      message: 'Monthly fee in centavos is required',
+      path: ['monthlyFeeCentavos'],
+    }
+  );
+
+// Service Plan Update Schema
+export const updatePlanSchema = z.object({
+  name: z.string().trim().min(2, 'Plan name must be at least 2 characters').max(128).optional(),
+  planCode: z.string().trim().min(2, 'Plan code must be at least 2 characters').max(32).optional(),
+  code: z.string().trim().min(2, 'Plan code must be at least 2 characters').max(32).optional(),
+  serviceType: serviceTypeEnum.optional(),
+  monthlyFeeCentavos: z.number().int('Monthly fee must be an integer centavos').nonnegative('Monthly fee cannot be negative').optional(),
+  monthlyRecurringCentavos: z.number().int('Monthly fee must be an integer centavos').nonnegative('Monthly fee cannot be negative').optional(),
+  installationFeeCentavos: z.number().int('Installation fee must be an integer centavos').nonnegative('Installation fee cannot be negative').optional(),
+  bandwidthMbps: z.number().int('Bandwidth must be an integer').positive('Bandwidth must be positive').optional().nullable(),
+  channelCount: z.number().int('Channel count must be an integer').positive('Channel count must be positive').optional().nullable(),
+  isActive: z.boolean().optional(),
+});
+
+// Service Plan Query Schema
+export const planQuerySchema = z.object({
+  serviceType: serviceTypeEnum.optional(),
+  isActive: z.preprocess((val) => {
+    if (typeof val === 'string') {
+      if (val.toLowerCase() === 'true') return true;
+      if (val.toLowerCase() === 'false') return false;
+    }
+    return val;
+  }, z.boolean().optional()),
+  search: z.string().trim().optional(),
+});
+
+// Service Account Status Enum
+export const serviceAccountStatusEnum = z.enum([
+  'PENDING',
+  'PENDING_INSTALL',
+  'ACTIVE',
+  'SUSPENDED',
+  'TERMINATED',
+]);
+
+// Service Account Creation Schema
+export const createServiceAccountSchema = z.object({
+  subscriberId: z.string().uuid('Invalid subscriber ID'),
+  servicePlanId: z.string().uuid('Invalid service plan ID'),
+  installationAddressId: z.string().uuid('Invalid installation address ID').optional().nullable(),
+  streetAddress: z.string().trim().min(3, 'Installation street address is required').optional(),
+  barangay: z.string().trim().min(1, 'Installation barangay is required').max(64).optional(),
+  municipality: z.string().trim().default('Malaybalay').optional(),
+  province: z.string().trim().default('Bukidnon').optional(),
+  postalCode: z.string().trim().default('8700').optional(),
+  collectorId: z.string().uuid('Invalid collector ID').optional().nullable(),
+  billingDayOfMonth: z.number().int('Billing day must be an integer').min(1).max(31).default(1),
+  currentRateCentavos: z.number().int('Current rate must be an integer centavos').nonnegative('Current rate cannot be negative').optional(),
+  status: serviceAccountStatusEnum.default('PENDING'),
+  activationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Activation date must be YYYY-MM-DD').optional().nullable(),
+});
+
+// Service Account Update Schema
+export const updateServiceAccountSchema = z.object({
+  servicePlanId: z.string().uuid('Invalid service plan ID').optional(),
+  installationAddressId: z.string().uuid('Invalid installation address ID').optional().nullable(),
+  collectorId: z.string().uuid('Invalid collector ID').optional().nullable(),
+  billingDayOfMonth: z.number().int('Billing day must be an integer').min(1).max(31).optional(),
+  currentRateCentavos: z.number().int('Current rate must be an integer centavos').nonnegative('Current rate cannot be negative').optional(),
+  status: serviceAccountStatusEnum.optional(),
+  activationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Activation date must be YYYY-MM-DD').optional().nullable(),
+});
+
+// Service Account Status Change Schema
+export const changeServiceAccountStatusSchema = z.object({
+  status: serviceAccountStatusEnum,
+  reason: z.string().trim().min(3, 'Audit reason must be at least 3 characters').max(500).optional(),
+});
+
+// Service Account Query Schema
+export const serviceAccountQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+  subscriberId: z.string().uuid().optional(),
+  servicePlanId: z.string().uuid().optional(),
+  status: serviceAccountStatusEnum.optional(),
+  search: z.string().trim().optional(),
+  sortBy: z.enum(['createdAt', 'serviceAccountNumber', 'status']).default('createdAt'),
+  sortOrder: z.enum(['asc', 'desc']).default('desc'),
+});
+
 
 // Payment Creation Schema
 export const createPaymentSchema = z.object({
@@ -68,3 +218,17 @@ export const reconcileBatchSchema = z.object({
   remittedCashCentavos: z.number().int().nonnegative('Remitted cash cannot be negative'),
   supervisorNotes: z.string().max(500).optional(),
 });
+
+export type CreateSubscriberInput = z.infer<typeof createSubscriberSchema>;
+export type UpdateSubscriberInput = z.infer<typeof updateSubscriberSchema>;
+export type SubscriberQueryInput = z.infer<typeof subscriberQuerySchema>;
+
+export type CreatePlanInput = z.infer<typeof createPlanSchema>;
+export type UpdatePlanInput = z.infer<typeof updatePlanSchema>;
+export type PlanQueryInput = z.infer<typeof planQuerySchema>;
+
+export type CreateServiceAccountInput = z.infer<typeof createServiceAccountSchema>;
+export type UpdateServiceAccountInput = z.infer<typeof updateServiceAccountSchema>;
+export type ChangeServiceAccountStatusInput = z.infer<typeof changeServiceAccountStatusSchema>;
+export type ServiceAccountQueryInput = z.infer<typeof serviceAccountQuerySchema>;
+
