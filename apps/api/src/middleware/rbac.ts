@@ -49,6 +49,12 @@ const PERMISSION_ALIASES: Record<string, string[]> = {
   'collection.batch_create': ['collection.batch_create', 'remittances.manage'],
   'remittances.manage': ['remittances.manage', 'collection.reconcile', 'collection.batch_create', 'collection.manage_staff'],
   'collection.reconcile': ['collection.reconcile', 'remittances.manage'],
+  'report.financial': ['report.financial', 'reports.financial'],
+  'reports.financial': ['reports.financial', 'report.financial'],
+  'report.operational': ['report.operational', 'reports.operational'],
+  'reports.operational': ['reports.operational', 'report.operational'],
+  'receivable.view_aging': ['receivable.view_aging'],
+  'dunning.manage': ['dunning.manage'],
 };
 
 export function satisfiesPermission(perm: string, userPermissions: string[]): boolean {

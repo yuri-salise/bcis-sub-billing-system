@@ -577,4 +577,98 @@ export type CompleteServiceOrderInput = z.infer<typeof completeServiceOrderSchem
 export type CancelServiceOrderInput = z.infer<typeof cancelServiceOrderSchema>;
 export type ServiceOrderQueryInput = z.infer<typeof serviceOrderQuerySchema>;
 
+// ==============================================================================
+// 12. Dunning Management Schemas (Phase 7)
+// ==============================================================================
+
+export const dunningNoticeStatusEnum = z.enum([
+  'ISSUED',
+  'DELIVERED',
+  'RESOLVED',
+  'CANCELLED',
+]);
+
+export const generateDunningNoticesSchema = z.object({
+  minDaysOverdue: z.coerce.number().int().positive('Minimum days overdue must be positive').default(30),
+  noticeLevel: z.coerce.number().int().min(1).max(3).optional(),
+  collectionAreaId: z.string().uuid('Invalid collection area ID').optional(),
+  serviceAccountId: z.string().uuid('Invalid service account ID').optional(),
+  notes: z.string().trim().max(500).optional(),
+});
+
+export const dunningNoticeQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+  status: dunningNoticeStatusEnum.optional(),
+  serviceAccountId: z.string().uuid().optional(),
+  subscriberId: z.string().uuid().optional(),
+  noticeLevel: z.coerce.number().int().min(1).max(3).optional(),
+  search: z.string().trim().optional(),
+  sortBy: z.enum(['issuedAt', 'noticeNumber', 'daysOverdue', 'overdueBalanceCentavos', 'status']).default('issuedAt'),
+  sortOrder: z.enum(['asc', 'desc']).default('desc'),
+});
+
+export const deliverDunningNoticeSchema = z.object({
+  deliveredAt: z.string().optional(),
+  deliveryNotes: z.string().trim().max(1000).optional(),
+});
+
+export const resolveDunningNoticeSchema = z.object({
+  resolvedReason: z.string().trim().min(2, 'Resolution reason is required').max(500),
+  notes: z.string().trim().max(1000).optional(),
+});
+
+export const cancelDunningNoticeSchema = z.object({
+  reason: z.string().trim().min(2, 'Cancellation reason is required').max(500),
+});
+
+export type GenerateDunningNoticesInput = z.infer<typeof generateDunningNoticesSchema>;
+export type DunningNoticeQueryInput = z.infer<typeof dunningNoticeQuerySchema>;
+export type DeliverDunningNoticeInput = z.infer<typeof deliverDunningNoticeSchema>;
+export type ResolveDunningNoticeInput = z.infer<typeof resolveDunningNoticeSchema>;
+export type CancelDunningNoticeInput = z.infer<typeof cancelDunningNoticeSchema>;
+
+// ==============================================================================
+// 13. Reports & Analytics Schemas (Phase 7)
+// ==============================================================================
+
+export const reportFormatEnum = z.enum(['json', 'csv']).default('json');
+
+export const arAgingQuerySchema = z.object({
+  asOfDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD').optional(),
+  barangay: z.string().trim().optional(),
+  collectionAreaId: z.string().uuid('Invalid collection area ID').optional(),
+  groupBy: z.enum(['subscriber', 'service_account', 'barangay', 'collection_area', 'summary']).default('subscriber'),
+  format: reportFormatEnum,
+});
+
+export const disconnectionCandidatesQuerySchema = z.object({
+  thresholdDays: z.coerce.number().int().positive('Threshold days must be positive').default(60),
+  minOverdueCentavos: z.coerce.number().int().nonnegative('Minimum overdue cannot be negative').default(0),
+  barangay: z.string().trim().optional(),
+  collectionAreaId: z.string().uuid('Invalid collection area ID').optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(200).default(50),
+  format: reportFormatEnum,
+});
+
+export const dailyCollectionQuerySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD').optional(),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Start date must be YYYY-MM-DD').optional(),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'End date must be YYYY-MM-DD').optional(),
+  cashierId: z.string().uuid('Invalid cashier ID').optional(),
+  format: reportFormatEnum,
+});
+
+export const billingRevenueQuerySchema = z.object({
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Start date must be YYYY-MM-DD').optional(),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'End date must be YYYY-MM-DD').optional(),
+  format: reportFormatEnum,
+});
+
+export type ArAgingQueryInput = z.infer<typeof arAgingQuerySchema>;
+export type DisconnectionCandidatesQueryInput = z.infer<typeof disconnectionCandidatesQuerySchema>;
+export type DailyCollectionQueryInput = z.infer<typeof dailyCollectionQuerySchema>;
+export type BillingRevenueQueryInput = z.infer<typeof billingRevenueQuerySchema>;
+
 

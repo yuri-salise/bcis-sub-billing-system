@@ -63,6 +63,9 @@ export type PermissionCode =
   | 'service_control.reconnect'
   | 'report.operational'
   | 'report.financial'
+  | 'reports.operational'
+  | 'reports.financial'
+  | 'dunning.manage'
   | 'user.manage'
   | 'user.reset_password'
   | 'audit.view'
@@ -635,5 +638,165 @@ export interface RouteSheetDto {
   accounts: RouteSheetAccountItem[];
 }
 
+// ==============================================================================
+// 12. Dunning Management (Phase 7)
+// ==============================================================================
 
+export enum DunningStatus {
+  ISSUED = 'ISSUED',
+  DELIVERED = 'DELIVERED',
+  RESOLVED = 'RESOLVED',
+  CANCELLED = 'CANCELLED',
+}
 
+export interface DunningNoticeDto {
+  id: string;
+  noticeNumber: string;
+  serviceAccountId: string;
+  subscriberId: string;
+  noticeLevel: number;
+  status: DunningStatus | string;
+  overdueBalanceCentavos: number;
+  daysOverdue: number;
+  oldestInvoiceDueDate: string | null;
+  issuedAt: Date | string;
+  issuedBy: string | null;
+  deliveredAt: Date | string | null;
+  deliveredBy: string | null;
+  deliveryNotes: string | null;
+  resolvedAt: Date | string | null;
+  resolvedReason: string | null;
+  notes: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  serviceAccount?: {
+    id: string;
+    serviceAccountNumber: string;
+    status: string;
+    planName?: string;
+    currentRateCentavos?: number;
+  };
+  subscriber?: {
+    id: string;
+    accountNumber: string;
+    firstName: string;
+    lastName: string;
+    contactNumber?: string;
+  };
+}
+
+// ==============================================================================
+// 13. Reports & Analytics (Phase 7)
+// ==============================================================================
+
+export interface ArAgingSummaryDto {
+  asOfDate: string;
+  currentCentavos: number;
+  days1to30Centavos: number;
+  days31to60Centavos: number;
+  days61to90Centavos: number;
+  days90PlusCentavos: number;
+  totalOverdueCentavos: number;
+  totalReceivableCentavos: number;
+  accountCount: number;
+}
+
+export interface ArAgingItemDto {
+  subscriberId?: string;
+  accountNumber?: string;
+  subscriberName?: string;
+  serviceAccountId?: string;
+  serviceAccountNumber?: string;
+  barangay?: string;
+  collectionAreaId?: string | null;
+  collectionAreaName?: string | null;
+  planName?: string;
+  accountCount?: number;
+  currentCentavos: number;
+  days1to30Centavos: number;
+  days31to60Centavos: number;
+  days61to90Centavos: number;
+  days90PlusCentavos: number;
+  totalCentavos: number;
+  oldestDueDate?: string | null;
+  daysOverdue?: number;
+}
+
+export interface ArAgingReportDto {
+  asOfDate: string;
+  groupBy: string;
+  summary: ArAgingSummaryDto;
+  items: ArAgingItemDto[];
+}
+
+export interface DisconnectionCandidateDto {
+  serviceAccountId: string;
+  serviceAccountNumber: string;
+  subscriberId: string;
+  subscriberAccountNumber: string;
+  subscriberName: string;
+  contactNumber: string;
+  address: string;
+  barangay: string;
+  collectionAreaId: string | null;
+  collectionAreaName: string | null;
+  planName: string;
+  monthlyRateCentavos: number;
+  oldestInvoiceDueDate: string;
+  daysOverdue: number;
+  unpaidInvoiceCount: number;
+  totalOverdueCentavos: number;
+  hasDunningNotice: boolean;
+  latestDunningNoticeStatus: string | null;
+  latestDunningNoticeNumber: string | null;
+}
+
+export interface CashierCollectionSummaryDto {
+  cashierId: string;
+  cashierName: string;
+  cashierUsername: string;
+  totalReceipts: number;
+  cashCentavos: number;
+  gcashCentavos: number;
+  checkCentavos: number;
+  bankTransferCentavos: number;
+  totalCentavos: number;
+}
+
+export interface MethodCollectionSummaryDto {
+  method: PaymentMethod | string;
+  paymentCount: number;
+  totalCentavos: number;
+}
+
+export interface DailyCollectionReportDto {
+  reportDate: string;
+  startDate?: string;
+  endDate?: string;
+  totalPayments: number;
+  totalReceipts: number;
+  totalCollectedCentavos: number;
+  byMethod: Record<string, { count: number; totalCentavos: number }>;
+  byCashier: CashierCollectionSummaryDto[];
+}
+
+export interface InvoiceStatusBreakdownDto {
+  status: string;
+  count: number;
+  totalCentavos: number;
+}
+
+export interface BillingRevenueReportDto {
+  startDate: string;
+  endDate: string;
+  totalInvoicesGenerated: number;
+  totalCentavosBilled: number;
+  totalVatCentavos: number;
+  totalSubtotalCentavos: number;
+  periodOutstandingCentavos: number;
+  totalPaymentsCollected: number;
+  totalCentavosCollected: number;
+  overallBalanceOutstandingCentavos: number;
+  collectionEfficiencyPercent: number;
+  statusBreakdown: InvoiceStatusBreakdownDto[];
+}

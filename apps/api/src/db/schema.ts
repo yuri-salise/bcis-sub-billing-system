@@ -353,3 +353,29 @@ export const auditLogs = pgTable('audit_logs', {
   ipAddress: varchar('ip_address', { length: 45 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ==============================================================================
+// 10. Dunning Notices (Phase 7)
+// ==============================================================================
+
+export const dunningNotices = pgTable('dunning_notices', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  noticeNumber: varchar('notice_number', { length: 32 }).notNull().unique(),
+  serviceAccountId: uuid('service_account_id').notNull().references(() => serviceAccounts.id, { onDelete: 'cascade' }),
+  subscriberId: uuid('subscriber_id').notNull().references(() => subscribers.id, { onDelete: 'cascade' }),
+  noticeLevel: integer('notice_level').notNull().default(1),
+  status: varchar('status', { length: 32 }).notNull().default('ISSUED'), // ISSUED, DELIVERED, RESOLVED, CANCELLED
+  overdueBalanceCentavos: bigint('overdue_balance_centavos', { mode: 'number' }).notNull(),
+  daysOverdue: integer('days_overdue').notNull().default(0),
+  oldestInvoiceDueDate: date('oldest_invoice_due_date'),
+  issuedAt: timestamp('issued_at', { withTimezone: true }).notNull().defaultNow(),
+  issuedBy: uuid('issued_by').references(() => users.id),
+  deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+  deliveredBy: uuid('delivered_by').references(() => users.id),
+  deliveryNotes: text('delivery_notes'),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  resolvedReason: text('resolved_reason'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});

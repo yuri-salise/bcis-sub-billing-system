@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateDaysOverdue, getAgingBucket, isSuspensionCandidate } from '../src/aging.js';
+import { calculateDaysOverdue, getAgingBucket, isSuspensionCandidate, aggregateAgingBuckets } from '../src/aging.js';
 import { AgingBucket } from '@bcis/shared-types';
 
 describe('Accounts Receivable (AR) Aging Engine', () => {
@@ -12,9 +12,9 @@ describe('Accounts Receivable (AR) Aging Engine', () => {
   });
 
   it('categorizes invoices overdue by 1-30 days as DAYS_1_30', () => {
-    const due10DaysAgo = '2026-09-04T00:00:00.000Z';
-    expect(calculateDaysOverdue(due10DaysAgo, asOf)).toBe(10);
-    expect(getAgingBucket(due10DaysAgo, asOf)).toBe(AgingBucket.DAYS_1_30);
+    const due100DaysAgo = '2026-09-04T00:00:00.000Z';
+    expect(calculateDaysOverdue(due100DaysAgo, asOf)).toBe(10);
+    expect(getAgingBucket(due100DaysAgo, asOf)).toBe(AgingBucket.DAYS_1_30);
   });
 
   it('categorizes invoices overdue by 31-60 days as DAYS_31_60', () => {
@@ -40,5 +40,26 @@ describe('Accounts Receivable (AR) Aging Engine', () => {
     expect(isSuspensionCandidate(60)).toBe(false);
     expect(isSuspensionCandidate(61)).toBe(true);
     expect(isSuspensionCandidate(90)).toBe(true);
+  });
+
+  it('correctly aggregates invoices into the 5 standard AR aging buckets', () => {
+    const sampleInvoices = [
+      { dueDate: '2026-09-20', remainingBalanceCentavos: 100000 }, // CURRENT
+      { dueDate: '2026-09-04', remainingBalanceCentavos: 50000 },  // 1-30
+      { dueDate: '2026-07-31', remainingBalanceCentavos: 75000 },  // 31-60
+      { dueDate: '2026-07-01', remainingBalanceCentavos: 60000 },  // 61-90
+      { dueDate: '2026-05-15', remainingBalanceCentavos: 120000 }, // 90+
+      { dueDate: '2026-09-01', remainingBalanceCentavos: 0 },      // Paid invoice (should be ignored)
+    ];
+
+    const result = aggregateAgingBuckets(sampleInvoices, asOf);
+
+    expect(result.currentCentavos).toBe(100000);
+    expect(result.days1to30Centavos).toBe(50000);
+    expect(result.days31to60Centavos).toBe(75000);
+    expect(result.days61to90Centavos).toBe(60000);
+    expect(result.days90PlusCentavos).toBe(120000);
+    expect(result.totalOverdueCentavos).toBe(305000);
+    expect(result.totalReceivableCentavos).toBe(405000);
   });
 });

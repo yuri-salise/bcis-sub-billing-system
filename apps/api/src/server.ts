@@ -15,6 +15,8 @@ import { gcashRoutes } from './modules/gcash/gcash.routes.js';
 import { remittanceRoutes } from './modules/remittances/remittances.routes.js';
 import { collectionsRoutes } from './modules/collections/collections.routes.js';
 import { serviceOrderRoutes } from './modules/service-orders/service-orders.routes.js';
+import { reportsRoutes, receivablesRoutes } from './modules/reports/reports.routes.js';
+import { dunningRoutes } from './modules/dunning/dunning.routes.js';
 
 export function buildServer(): FastifyInstance {
   const server = Fastify({
@@ -62,6 +64,9 @@ export function buildServer(): FastifyInstance {
   server.register(remittanceRoutes, { prefix: '/api/v1/collections' });
   server.register(collectionsRoutes, { prefix: '/api/v1/collections' });
   server.register(serviceOrderRoutes, { prefix: '/api/v1/service-orders' });
+  server.register(reportsRoutes, { prefix: '/api/v1/reports' });
+  server.register(receivablesRoutes, { prefix: '/api/v1/receivables' });
+  server.register(dunningRoutes, { prefix: '/api/v1/dunning' });
 
   // 404 Not Found handler adhering to RFC 7807 unified envelope
   server.setNotFoundHandler((request, reply) => {

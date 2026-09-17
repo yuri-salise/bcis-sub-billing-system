@@ -44,3 +44,62 @@ export function getAgingBucket(dueDate: string | Date, asOfDate: string | Date =
 export function isSuspensionCandidate(daysOverdue: number): boolean {
   return daysOverdue > 60;
 }
+
+export interface AgingBucketSummary {
+  currentCentavos: number;
+  days1to30Centavos: number;
+  days31to60Centavos: number;
+  days61to90Centavos: number;
+  days90PlusCentavos: number;
+  totalOverdueCentavos: number;
+  totalReceivableCentavos: number;
+}
+
+/**
+ * Aggregates a list of open invoices into the 5 standard AR aging buckets.
+ */
+export function aggregateAgingBuckets(
+  invoices: Array<{ dueDate: string | Date; remainingBalanceCentavos: number }>,
+  asOfDate: string | Date = new Date()
+): AgingBucketSummary {
+  let currentCentavos = 0;
+  let days1to30Centavos = 0;
+  let days31to60Centavos = 0;
+  let days61to90Centavos = 0;
+  let days90PlusCentavos = 0;
+
+  for (const inv of invoices) {
+    if (inv.remainingBalanceCentavos <= 0) continue;
+    const bucket = getAgingBucket(inv.dueDate, asOfDate);
+    switch (bucket) {
+      case AgingBucket.CURRENT:
+        currentCentavos += inv.remainingBalanceCentavos;
+        break;
+      case AgingBucket.DAYS_1_30:
+        days1to30Centavos += inv.remainingBalanceCentavos;
+        break;
+      case AgingBucket.DAYS_31_60:
+        days31to60Centavos += inv.remainingBalanceCentavos;
+        break;
+      case AgingBucket.DAYS_61_90:
+        days61to90Centavos += inv.remainingBalanceCentavos;
+        break;
+      case AgingBucket.DAYS_90_PLUS:
+        days90PlusCentavos += inv.remainingBalanceCentavos;
+        break;
+    }
+  }
+
+  const totalOverdueCentavos = days1to30Centavos + days31to60Centavos + days61to90Centavos + days90PlusCentavos;
+  const totalReceivableCentavos = currentCentavos + totalOverdueCentavos;
+
+  return {
+    currentCentavos,
+    days1to30Centavos,
+    days31to60Centavos,
+    days61to90Centavos,
+    days90PlusCentavos,
+    totalOverdueCentavos,
+    totalReceivableCentavos,
+  };
+}

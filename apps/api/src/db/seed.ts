@@ -61,20 +61,25 @@ export const BASE_PERMISSIONS: PermissionSeedData[] = [
   { code: 'receivable.view', module: 'receivable', description: 'View accounts receivable lists and delinquency summary', riskLevel: 'Low' },
   { code: 'receivable.view_aging', module: 'receivable', description: 'Access AR aging buckets (Current, 1-30, 31-60, 61-90, 90+)', riskLevel: 'Medium' },
 
-  // 10. Service Control Module
+  // 10. Dunning Module (Phase 7)
+  { code: 'dunning.manage', module: 'dunning', description: 'Generate and manage dunning notices and overdue accounts', riskLevel: 'Medium' },
+
+  // 11. Service Control Module
   { code: 'service_control.view', module: 'service_control', description: 'View suspension candidates and disconnection orders', riskLevel: 'Low' },
   { code: 'service_control.suspend', module: 'service_control', description: 'Approve and execute service suspension', riskLevel: 'High' },
   { code: 'service_control.reconnect', module: 'service_control', description: 'Approve and execute service reconnection', riskLevel: 'High' },
 
-  // 11. Service Orders Module (Phase 6)
+  // 12. Service Orders Module (Phase 6)
   { code: 'service_orders.create', module: 'service_orders', description: 'Create and issue service orders', riskLevel: 'Medium' },
   { code: 'service_orders.read', module: 'service_orders', description: 'View service orders and technical history', riskLevel: 'Low' },
   { code: 'service_orders.update', module: 'service_orders', description: 'Assign technician, update schedule or notes', riskLevel: 'Medium' },
   { code: 'service_orders.complete', module: 'service_orders', description: 'Complete service order and sync account status', riskLevel: 'High' },
 
-  // 11. Report Module
+  // 13. Report Module
   { code: 'report.operational', module: 'report', description: 'Export operational reports (Subscriber list, Route sheets)', riskLevel: 'Medium' },
   { code: 'report.financial', module: 'report', description: 'Export financial reports (Daily collection, SOA, Revenue)', riskLevel: 'High' },
+  { code: 'reports.operational', module: 'report', description: 'Export operational reports (Disconnection candidates, aging)', riskLevel: 'Medium' },
+  { code: 'reports.financial', module: 'report', description: 'Export financial reports (Daily collection, billing revenue, AR aging)', riskLevel: 'High' },
 
   // 12. User Module
   { code: 'user.manage', module: 'user', description: 'Create employees, assign roles, deactivate users', riskLevel: 'Critical' },
@@ -146,7 +151,8 @@ export const ROLE_PERMISSION_MAPPING: Record<UserRole, PermissionCode[]> = {
     'service_orders.create', 'service_orders.read', 'service_orders.update', 'service_orders.complete',
     'receivable.view', 'receivable.view_aging',
     'service_control.view', 'service_control.suspend', 'service_control.reconnect',
-    'report.operational', 'report.financial',
+    'dunning.manage',
+    'report.operational', 'report.financial', 'reports.operational', 'reports.financial',
     'user.manage', 'user.reset_password',
   ],
   [UserRole.CASHIER]: [
@@ -166,7 +172,8 @@ export const ROLE_PERMISSION_MAPPING: Record<UserRole, PermissionCode[]> = {
     'service_orders.read', 'service_orders.create', 'service_orders.update',
     'receivable.view', 'receivable.view_aging',
     'service_control.view', 'service_control.suspend', 'service_control.reconnect',
-    'report.operational',
+    'dunning.manage',
+    'report.operational', 'reports.operational',
   ],
   [UserRole.ACCOUNTING]: [
     'subscriber.view', 'service_account.view', 'service_plan.view',
@@ -178,7 +185,8 @@ export const ROLE_PERMISSION_MAPPING: Record<UserRole, PermissionCode[]> = {
     'service_orders.read',
     'receivable.view', 'receivable.view_aging',
     'service_control.view',
-    'report.operational', 'report.financial',
+    'dunning.manage',
+    'report.operational', 'report.financial', 'reports.operational', 'reports.financial',
     'audit.view', 'audit.export',
   ],
   [UserRole.TECHNICIAN]: [
@@ -247,6 +255,40 @@ export async function seedDatabase(): Promise<void> {
 
     ALTER TABLE service_accounts ADD COLUMN IF NOT EXISTS collection_area_id UUID REFERENCES collection_areas(id);
     ALTER TABLE service_accounts ADD COLUMN IF NOT EXISTS collection_route_id UUID REFERENCES collection_routes(id);
+
+    CREATE TABLE IF NOT EXISTS dunning_notices (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      notice_number VARCHAR(32) NOT NULL UNIQUE,
+      service_account_id UUID NOT NULL REFERENCES service_accounts(id) ON DELETE CASCADE,
+      subscriber_id UUID NOT NULL REFERENCES subscribers(id) ON DELETE CASCADE,
+      notice_level INTEGER NOT NULL DEFAULT 1,
+      status VARCHAR(32) NOT NULL DEFAULT 'ISSUED',
+      overdue_balance_centavos BIGINT NOT NULL,
+      days_overdue INTEGER NOT NULL DEFAULT 0,
+      oldest_invoice_due_date DATE,
+      issued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      issued_by UUID REFERENCES users(id),
+      delivered_at TIMESTAMPTZ,
+      delivered_by UUID REFERENCES users(id),
+      delivery_notes TEXT,
+      resolved_at TIMESTAMPTZ,
+      resolved_reason TEXT,
+      notes TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    -- Ensure cascading delete is enforced on existing tables
+    DO $$ BEGIN
+      ALTER TABLE dunning_notices DROP CONSTRAINT IF EXISTS dunning_notices_service_account_id_service_accounts_id_fk;
+      ALTER TABLE dunning_notices DROP CONSTRAINT IF EXISTS dunning_notices_subscriber_id_subscribers_id_fk;
+      ALTER TABLE dunning_notices DROP CONSTRAINT IF EXISTS dunning_notices_service_account_id_fkey;
+      ALTER TABLE dunning_notices DROP CONSTRAINT IF EXISTS dunning_notices_subscriber_id_fkey;
+      ALTER TABLE dunning_notices ADD CONSTRAINT dunning_notices_service_account_id_fkey FOREIGN KEY (service_account_id) REFERENCES service_accounts(id) ON DELETE CASCADE;
+      ALTER TABLE dunning_notices ADD CONSTRAINT dunning_notices_subscriber_id_fkey FOREIGN KEY (subscriber_id) REFERENCES subscribers(id) ON DELETE CASCADE;
+    EXCEPTION
+      WHEN others THEN NULL;
+    END $$;
   `);
 
   // 0. Seed Service Types
@@ -517,6 +559,56 @@ export async function seedDatabase(): Promise<void> {
       .values({
         userId: supvUserId,
         roleId: supvRoleId,
+      })
+      .onConflictDoNothing();
+  }
+
+  // 8.5 Seed Demo Accounting User
+  const acctUsername = 'accounting';
+  const acctPassword = 'Accounting123!';
+  const acctRoleId = roleMap.get(UserRole.ACCOUNTING);
+
+  let acctUserId: string | null = null;
+  if (acctRoleId) {
+    const existingAcct = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, acctUsername))
+      .limit(1);
+
+    if (existingAcct.length === 0) {
+      console.log(`[Seed] Creating demo Accounting: ${acctUsername}`);
+      const passwordHash = await hashPassword(acctPassword);
+      const [newAcct] = await db
+        .insert(users)
+        .values({
+          username: acctUsername,
+          passwordHash,
+          fullName: 'Elena Cruz (Accounting)',
+          email: 'accounting@bcis.local',
+          isActive: true,
+          failedLoginAttempts: 0,
+        })
+        .returning({ id: users.id });
+      acctUserId = newAcct.id;
+    } else {
+      acctUserId = existingAcct[0].id;
+      await db
+        .update(users)
+        .set({
+          isActive: true,
+          failedLoginAttempts: 0,
+          lockedUntil: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, acctUserId));
+    }
+
+    await db
+      .insert(userRoles)
+      .values({
+        userId: acctUserId,
+        roleId: acctRoleId,
       })
       .onConflictDoNothing();
   }
