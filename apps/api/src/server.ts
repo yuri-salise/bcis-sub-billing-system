@@ -9,6 +9,10 @@ import { planRoutes } from './modules/plans/plans.routes.js';
 import { subscriberRoutes } from './modules/subscribers/subscribers.routes.js';
 import { serviceAccountRoutes } from './modules/service-accounts/service-accounts.routes.js';
 import { invoiceRoutes } from './modules/invoices/invoices.routes.js';
+import { paymentRoutes } from './modules/payments/payments.routes.js';
+import { receiptRoutes } from './modules/payments/receipts.routes.js';
+import { gcashRoutes } from './modules/gcash/gcash.routes.js';
+import { remittanceRoutes } from './modules/remittances/remittances.routes.js';
 
 export function buildServer(): FastifyInstance {
   const server = Fastify({
@@ -49,6 +53,11 @@ export function buildServer(): FastifyInstance {
   server.register(serviceAccountRoutes, { prefix: '/api/v1/service-accounts' });
   server.register(invoiceRoutes, { prefix: '/api/v1/invoices' });
   server.register(invoiceRoutes, { prefix: '/api/v1/billing' });
+  server.register(paymentRoutes, { prefix: '/api/v1/payments' });
+  server.register(receiptRoutes, { prefix: '/api/v1/receipts' });
+  server.register(gcashRoutes, { prefix: '/api/v1/gcash' });
+  server.register(remittanceRoutes, { prefix: '/api/v1/remittances' });
+  server.register(remittanceRoutes, { prefix: '/api/v1/collections' });
 
   // 404 Not Found handler adhering to RFC 7807 unified envelope
   server.setNotFoundHandler((request, reply) => {

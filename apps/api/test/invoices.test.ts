@@ -13,6 +13,9 @@ import {
   subscriberLedger,
   paymentAllocations,
   payments,
+  receipts,
+  paymentReversals,
+  gcashTransactions,
   users,
   auditLogs,
 } from '../src/db/schema.js';
@@ -33,8 +36,11 @@ describe('Billing & Invoicing Engine (Phase 4)', () => {
     await seedDatabase();
 
     // Clean up test invoices, allocations, items, and ledger from previous test runs
+    await db.delete(paymentReversals);
+    await db.delete(receipts);
     await db.delete(paymentAllocations);
     await db.delete(payments);
+    await db.delete(gcashTransactions);
     await db.delete(invoiceItems);
     await db.delete(invoices);
     await db.delete(subscriberLedger);

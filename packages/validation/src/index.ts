@@ -194,30 +194,103 @@ export const createPaymentSchema = z.object({
   subscriberId: z.string().uuid('Invalid subscriber ID'),
   amountCentavos: z.number().int('Amount must be an integer').positive('Amount must be greater than zero centavos'),
   paymentMethod: z.nativeEnum(PaymentMethod, { errorMap: () => ({ message: 'Invalid payment method' }) }),
-  referenceNumber: z.string().max(64).optional(),
-  notes: z.string().max(255).optional(),
+  referenceNumber: z.string().max(64).optional().nullable(),
+  notes: z.string().max(255).optional().nullable(),
+  collectionBatchId: z.string().uuid().optional().nullable(),
 });
 
-// GCash Submission Intake Schema
+// Payment Query Schema
+export const paymentQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+  subscriberId: z.string().uuid().optional(),
+  cashierId: z.string().uuid().optional(),
+  paymentMethod: z.nativeEnum(PaymentMethod).optional(),
+  method: z.nativeEnum(PaymentMethod).optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  date_from: z.string().optional(),
+  date_to: z.string().optional(),
+  isReversed: z.preprocess((val) => {
+    if (typeof val === 'string') {
+      if (val.toLowerCase() === 'true') return true;
+      if (val.toLowerCase() === 'false') return false;
+    }
+    return val;
+  }, z.boolean().optional()),
+  search: z.string().trim().optional(),
+  sortBy: z.enum(['createdAt', 'paymentDate', 'amountCentavos', 'paymentNumber']).default('paymentDate'),
+  sortOrder: z.enum(['asc', 'desc']).default('desc'),
+});
+
+// GCash Submission / Intake Schema
 export const submitGCashSchema = z.object({
-  referenceNumber: z.string().regex(gcashRefRegex, 'GCash reference number must be 11 to 16 digits'),
-  subscriberId: z.string().uuid('Invalid subscriber ID').optional(),
-  senderName: z.string().min(2, 'Sender name is required').max(128),
-  senderPhone: z.string().regex(philippinePhoneRegex, 'Must be a valid Philippine mobile number'),
-  amountCentavos: z.number().int().positive('Amount must be positive centavos'),
-  proofImagePath: z.string().min(1, 'Proof image path is required'),
+  referenceNumber: z.string().trim().min(5, 'GCash reference number is too short').max(64),
+  subscriberId: z.string().uuid('Invalid subscriber ID').optional().nullable(),
+  senderName: z.string().trim().min(2, 'Sender name is required').max(128),
+  senderPhone: z.string().trim().regex(philippinePhoneRegex, 'Must be a valid Philippine mobile number'),
+  amountCentavos: z.number().int('Amount must be an integer').positive('Amount must be positive centavos'),
+  proofImagePath: z.string().trim().min(1, 'Proof image path is required'),
+});
+export const intakeGCashSchema = submitGCashSchema;
+
+// GCash Verification Schema
+export const verifyGCashSchema = z.object({
+  subscriberId: z.string().uuid('Invalid subscriber ID').optional().nullable(),
+  notes: z.string().max(255).optional().nullable(),
+});
+
+// GCash Rejection Schema
+export const rejectGCashSchema = z.object({
+  reason: z.string().trim().min(3, 'Rejection reason must be at least 3 characters').max(500),
 });
 
 // Payment Reversal Schema (AT-06)
 export const reversePaymentSchema = z.object({
-  reason: z.string().min(10, 'Audit reason for reversal must be at least 10 characters').max(500),
+  reason: z.string().trim().min(5, 'Audit reason for reversal must be at least 5 characters').max(500),
+});
+
+// Collection Batch Creation Schema
+export const createBatchSchema = z.object({
+  batchNumber: z.string().trim().max(32).optional(),
+  collectorId: z.string().uuid('Invalid collector ID'),
+  collectionAreaId: z.string().uuid('Invalid collection area ID').optional().nullable(),
+  expectedCashCentavos: z.number().int().nonnegative().default(0),
 });
 
 // Collection Batch Remittance Reconciliation Schema (AT-07, AT-08)
 export const reconcileBatchSchema = z.object({
-  remittedCashCentavos: z.number().int().nonnegative('Remitted cash cannot be negative'),
-  supervisorNotes: z.string().max(500).optional(),
+  expectedCashCentavos: z.number().int('Expected cash must be an integer').nonnegative('Expected cash cannot be negative').optional(),
+  remittedCashCentavos: z.number().int('Remitted cash must be an integer').nonnegative('Remitted cash cannot be negative'),
+  supervisorNotes: z.string().max(500).optional().nullable(),
 });
+
+// Cashier Shift Reconciliation Schema
+export const cashierShiftReconcileSchema = z.object({
+  cashierId: z.string().uuid().optional(),
+  shiftDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Shift date must be in YYYY-MM-DD format').optional(),
+  remittedCashCentavos: z.number().int().nonnegative('Remitted cash cannot be negative'),
+  notes: z.string().max(500).optional().nullable(),
+});
+
+// Collection Batch Closure Schema
+export const closeBatchSchema = z.object({
+  reason: z.string().max(500).optional().nullable(),
+  force: z.boolean().optional().default(false),
+});
+
+export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
+export type PaymentQueryInput = z.infer<typeof paymentQuerySchema>;
+export type SubmitGCashInput = z.infer<typeof submitGCashSchema>;
+export type IntakeGCashInput = z.infer<typeof intakeGCashSchema>;
+export type VerifyGCashInput = z.infer<typeof verifyGCashSchema>;
+export type RejectGCashInput = z.infer<typeof rejectGCashSchema>;
+export type ReversePaymentInput = z.infer<typeof reversePaymentSchema>;
+export type CreateBatchInput = z.infer<typeof createBatchSchema>;
+export type ReconcileBatchInput = z.infer<typeof reconcileBatchSchema>;
+export type CashierShiftReconcileInput = z.infer<typeof cashierShiftReconcileSchema>;
+export type CloseBatchInput = z.infer<typeof closeBatchSchema>;
+
 
 export type CreateSubscriberInput = z.infer<typeof createSubscriberSchema>;
 export type UpdateSubscriberInput = z.infer<typeof updateSubscriberSchema>;

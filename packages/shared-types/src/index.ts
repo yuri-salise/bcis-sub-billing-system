@@ -36,6 +36,9 @@ export type PermissionCode =
   | 'payment.view'
   | 'payment.create'
   | 'payment.reverse'
+  | 'payments.create'
+  | 'payments.read'
+  | 'payments.reverse'
   | 'receipt.view'
   | 'receipt.reprint'
   | 'gcash.view'
@@ -47,6 +50,7 @@ export type PermissionCode =
   | 'collection.enter_field'
   | 'collection.reconcile'
   | 'collection.manage_staff'
+  | 'remittances.manage'
   | 'receivable.view'
   | 'receivable.view_aging'
   | 'service_control.view'
@@ -344,4 +348,121 @@ export interface GenerateInvoiceBatchResultDto {
     reason: string;
   }>;
 }
+
+// Payment Allocation DTO
+export interface PaymentAllocationDto {
+  id: string;
+  paymentId: string;
+  invoiceId: string;
+  allocatedCentavos: number;
+  createdAt: Date | string;
+  invoice?: {
+    id: string;
+    invoiceNumber: string;
+    totalDueCentavos: number;
+    remainingBalanceCentavos: number;
+    status: string;
+    billingPeriodStart?: string;
+    billingPeriodEnd?: string;
+  };
+}
+
+// Receipt DTO
+export interface ReceiptDto {
+  id: string;
+  receiptNumber: string;
+  paymentId: string;
+  cashierId: string;
+  totalAmountCentavos: number;
+  status: string;
+  issuedAt: Date | string;
+  cashierName?: string;
+}
+
+// Payment DTO
+export interface PaymentDto {
+  id: string;
+  paymentNumber: string;
+  subscriberId: string;
+  cashierId: string;
+  paymentDate: Date | string;
+  paymentMethod: PaymentMethod | string;
+  referenceNumber: string | null;
+  amountCentavos: number;
+  isReversed: boolean;
+  notes: string | null;
+  createdAt: Date | string;
+  subscriber?: {
+    id: string;
+    accountNumber: string;
+    firstName: string;
+    lastName: string;
+    businessName: string | null;
+  };
+  cashier?: {
+    id: string;
+    username: string;
+    fullName: string;
+  };
+  receipt?: ReceiptDto | null;
+  allocations?: PaymentAllocationDto[];
+  advanceCreditAddedCentavos?: number;
+}
+
+// Payment Detail DTO
+export interface PaymentDetailDto extends PaymentDto {
+  reversal?: {
+    id: string;
+    reversedBy: string;
+    reversedByName?: string;
+    reason: string;
+    reversalDate: Date | string;
+  } | null;
+}
+
+// GCash Transaction DTO
+export interface GCashTransactionDto {
+  id: string;
+  referenceNumber: string;
+  subscriberId: string | null;
+  senderName: string;
+  senderPhone: string;
+  amountCentavos: number;
+  proofImagePath: string;
+  status: GCashStatus | string;
+  verifiedBy: string | null;
+  verifiedAt: Date | string | null;
+  rejectionReason: string | null;
+  createdAt: Date | string;
+  subscriber?: {
+    id: string;
+    accountNumber: string;
+    firstName: string;
+    lastName: string;
+  } | null;
+}
+
+// Collection Batch DTO
+export interface CollectionBatchDto {
+  id: string;
+  batchNumber: string;
+  collectorId: string;
+  collectionAreaId: string;
+  status: CollectionBatchStatus | string;
+  expectedCashCentavos: number;
+  remittedCashCentavos: number;
+  differenceCentavos: number;
+  openedAt: Date | string;
+  closedAt: Date | string | null;
+  collector?: {
+    id: string;
+    username: string;
+    fullName: string;
+  };
+  collectionArea?: {
+    id: string;
+    name: string;
+  };
+}
+
 
