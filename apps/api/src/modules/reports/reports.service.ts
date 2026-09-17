@@ -10,8 +10,9 @@ import {
   receipts,
   users,
   dunningNotices,
+  serviceTypes,
 } from '../../db/schema.js';
-import { eq, and, ne, gte, lte, sql, desc, asc, notInArray, ilike } from 'drizzle-orm';
+import { eq, and, ne, gte, lte, sql, desc, asc, notInArray, inArray, ilike } from 'drizzle-orm';
 import {
   calculateDaysOverdue,
   getAgingBucket,
@@ -23,6 +24,7 @@ import {
   DisconnectionCandidatesQueryInput,
   DailyCollectionQueryInput,
   BillingRevenueQueryInput,
+  DelinquentReceivablesQueryInput,
 } from '@bcis/validation';
 import {
   AgingBucket,
@@ -33,6 +35,8 @@ import {
   DailyCollectionReportDto,
   BillingRevenueReportDto,
   CashierCollectionSummaryDto,
+  DelinquentAccountDto,
+  DelinquentReportDto,
 } from '@bcis/shared-types';
 import { writeAuditLog } from '../../utils/audit.js';
 import { toCsvString } from './reports.csv.js';
@@ -80,18 +84,20 @@ export async function getArAgingReport(
     .where(
       and(
         sql`${invoices.remainingBalanceCentavos} > 0`,
-        notInArray(invoices.status, ['VOID', 'CREDITED']),
+        inArray(invoices.status, ['UNPAID', 'PARTIALLY_PAID', 'OVERDUE']),
         query.collectionAreaId ? eq(serviceAccounts.collectionAreaId, query.collectionAreaId) : undefined,
         query.barangay ? ilike(subscriberAddresses.barangay, `%${query.barangay}%`) : undefined
       )
     );
 
-  // Global summary counters
-  let totalCurrentCentavos = 0;
-  let totalDays1to30Centavos = 0;
-  let totalDays31to60Centavos = 0;
-  let totalDays61to90Centavos = 0;
-  let totalDays90PlusCentavos = 0;
+  // Authoritative financial bucketing using pure domain engine
+  const bucketSummary = aggregateAgingBuckets(
+    openInvoices.map((inv) => ({
+      dueDate: inv.dueDate,
+      remainingBalanceCentavos: Number(inv.remainingBalanceCentavos),
+    })),
+    asOfDate
+  );
 
   // Grouping containers
   const groupedMap = new Map<string, ArAgingItemDto>();
@@ -104,23 +110,8 @@ export async function getArAgingReport(
 
     distinctAccountSet.add(inv.serviceAccountId);
 
-    // Accumulate into overall totals
-    switch (bucket) {
-      case AgingBucket.CURRENT:
-        totalCurrentCentavos += bal;
-        break;
-      case AgingBucket.DAYS_1_30:
-        totalDays1to30Centavos += bal;
-        break;
-      case AgingBucket.DAYS_31_60:
-        totalDays31to60Centavos += bal;
-        break;
-      case AgingBucket.DAYS_61_90:
-        totalDays61to90Centavos += bal;
-        break;
-      case AgingBucket.DAYS_90_PLUS:
-        totalDays90PlusCentavos += bal;
-        break;
+    if (query.groupBy === 'summary') {
+      continue;
     }
 
     // Determine group key based on query.groupBy
@@ -208,23 +199,17 @@ export async function getArAgingReport(
     }
   }
 
-  const items = Array.from(groupedMap.values());
+  const items = query.groupBy === 'summary' ? [] : Array.from(groupedMap.values());
 
   const summary: ArAgingSummaryDto = {
     asOfDate: asOfDateStr,
-    currentCentavos: totalCurrentCentavos,
-    days1to30Centavos: totalDays1to30Centavos,
-    days31to60Centavos: totalDays31to60Centavos,
-    days61to90Centavos: totalDays61to90Centavos,
-    days90PlusCentavos: totalDays90PlusCentavos,
-    totalOverdueCentavos:
-      totalDays1to30Centavos + totalDays31to60Centavos + totalDays61to90Centavos + totalDays90PlusCentavos,
-    totalReceivableCentavos:
-      totalCurrentCentavos +
-      totalDays1to30Centavos +
-      totalDays31to60Centavos +
-      totalDays61to90Centavos +
-      totalDays90PlusCentavos,
+    currentCentavos: bucketSummary.currentCentavos,
+    days1to30Centavos: bucketSummary.days1to30Centavos,
+    days31to60Centavos: bucketSummary.days31to60Centavos,
+    days61to90Centavos: bucketSummary.days61to90Centavos,
+    days90PlusCentavos: bucketSummary.days90PlusCentavos,
+    totalOverdueCentavos: bucketSummary.totalOverdueCentavos,
+    totalReceivableCentavos: bucketSummary.totalReceivableCentavos,
     accountCount: distinctAccountSet.size,
   };
 
@@ -249,7 +234,19 @@ export async function getArAgingReport(
     let headers: string[] = [];
     let rows: (string | number)[][] = [];
 
-    if (query.groupBy === 'service_account') {
+    if (query.groupBy === 'summary') {
+      headers = ['Aging Bucket', 'Amount (PHP)'];
+      rows = [
+        ['Current', (summary.currentCentavos / 100).toFixed(2)],
+        ['1-30 Days Past Due', (summary.days1to30Centavos / 100).toFixed(2)],
+        ['31-60 Days Past Due', (summary.days31to60Centavos / 100).toFixed(2)],
+        ['61-90 Days Past Due', (summary.days61to90Centavos / 100).toFixed(2)],
+        ['90+ Days Past Due', (summary.days90PlusCentavos / 100).toFixed(2)],
+        ['Total Overdue', (summary.totalOverdueCentavos / 100).toFixed(2)],
+        ['Total Receivable', (summary.totalReceivableCentavos / 100).toFixed(2)],
+        ['Total Delinquent Accounts', summary.accountCount],
+      ];
+    } else if (query.groupBy === 'service_account') {
       headers = [
         'Service Account',
         'Subscriber Account',
@@ -400,7 +397,7 @@ export async function getDisconnectionCandidatesReport(
       and(
         eq(serviceAccounts.status, 'ACTIVE'),
         sql`${invoices.remainingBalanceCentavos} > 0`,
-        notInArray(invoices.status, ['VOID', 'CREDITED']),
+        inArray(invoices.status, ['UNPAID', 'PARTIALLY_PAID', 'OVERDUE']),
         query.collectionAreaId ? eq(serviceAccounts.collectionAreaId, query.collectionAreaId) : undefined,
         query.barangay ? ilike(subscriberAddresses.barangay, `%${query.barangay}%`) : undefined
       )
@@ -450,7 +447,10 @@ export async function getDisconnectionCandidatesReport(
 
     const entry = accountMap.get(row.serviceAccountId)!;
     entry.candidate.unpaidInvoiceCount += 1;
-    entry.candidate.totalOverdueCentavos += balance;
+    // Only past due invoices (daysOverdue > 0) contribute to totalOverdueCentavos
+    if (daysOverdue > 0) {
+      entry.candidate.totalOverdueCentavos += balance;
+    }
 
     if (daysOverdue > entry.maxDaysOverdue) {
       entry.maxDaysOverdue = daysOverdue;
@@ -477,7 +477,7 @@ export async function getDisconnectionCandidatesReport(
         issuedAt: dunningNotices.issuedAt,
       })
       .from(dunningNotices)
-      .where(sql`${dunningNotices.serviceAccountId} IN ${accountIds}`)
+      .where(inArray(dunningNotices.serviceAccountId, accountIds))
       .orderBy(desc(dunningNotices.issuedAt));
 
     const noticeMap = new Map<string, { number: string; status: string }>();
@@ -567,6 +567,17 @@ export async function getDisconnectionCandidatesReport(
   };
 }
 
+// Helper for Asia/Manila (UTC+08:00) timezone boundaries (docs/database-design.md)
+function getManilaDateBounds(startDateStr: string, endDateStr: string): { start: Date; end: Date } {
+  const start = new Date(`${startDateStr}T00:00:00+08:00`);
+  const end = new Date(`${endDateStr}T23:59:59.999+08:00`);
+  return { start, end };
+}
+
+function getManilaTodayStr(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date());
+}
+
 /**
  * 3. DAILY COLLECTION SUMMARY REPORT
  */
@@ -579,12 +590,14 @@ export async function getDailyCollectionReport(
   let endTimestamp: Date;
 
   if (query.startDate && query.endDate) {
-    startTimestamp = new Date(`${query.startDate}T00:00:00.000Z`);
-    endTimestamp = new Date(`${query.endDate}T23:59:59.999Z`);
+    const bounds = getManilaDateBounds(query.startDate, query.endDate);
+    startTimestamp = bounds.start;
+    endTimestamp = bounds.end;
   } else {
-    const dateStr = query.date || new Date().toISOString().split('T')[0];
-    startTimestamp = new Date(`${dateStr}T00:00:00.000Z`);
-    endTimestamp = new Date(`${dateStr}T23:59:59.999Z`);
+    const dateStr = query.date || getManilaTodayStr();
+    const bounds = getManilaDateBounds(dateStr, dateStr);
+    startTimestamp = bounds.start;
+    endTimestamp = bounds.end;
   }
 
   // Fetch payments in period
@@ -723,7 +736,7 @@ export async function getDailyCollectionReport(
 
   return {
     data: {
-      reportDate: query.date || new Date().toISOString().split('T')[0],
+      reportDate: query.date || getManilaTodayStr(),
       startDate: query.startDate,
       endDate: query.endDate,
       totalPayments: paymentRows.length,
@@ -744,17 +757,17 @@ export async function getBillingRevenueReport(
   actor: ActorInfo,
   ip?: string
 ): Promise<{ data: BillingRevenueReportDto | string; format: 'json' | 'csv' }> {
-  // Default to current month if dates not provided
-  const now = new Date();
-  const year = now.getUTCFullYear();
-  const month = now.getUTCMonth();
-  const defaultStart = new Date(Date.UTC(year, month, 1)).toISOString().split('T')[0];
-  const defaultEnd = new Date(Date.UTC(year, month + 1, 0)).toISOString().split('T')[0];
+  // Default to current month in Asia/Manila if dates not provided
+  const manilaToday = getManilaTodayStr();
+  const [currentYear, currentMonth] = manilaToday.split('-');
+  const defaultStart = `${currentYear}-${currentMonth}-01`;
+  const lastDay = new Date(Number(currentYear), Number(currentMonth), 0).getDate();
+  const defaultEnd = `${currentYear}-${currentMonth}-${String(lastDay).padStart(2, '0')}`;
 
   const startDateStr = query.startDate || defaultStart;
   const endDateStr = query.endDate || defaultEnd;
 
-  // 1. Fetch invoices generated within date range
+  // 1. Fetch invoices generated within date range (excluding drafts and voids)
   const invoicesInPeriod = await db
     .select({
       id: invoices.id,
@@ -769,7 +782,7 @@ export async function getBillingRevenueReport(
       and(
         gte(invoices.issueDate, startDateStr),
         lte(invoices.issueDate, endDateStr),
-        ne(invoices.status, 'VOID')
+        notInArray(invoices.status, ['VOID', 'DRAFT'])
       )
     );
 
@@ -800,9 +813,10 @@ export async function getBillingRevenueReport(
     entry.totalCentavos += total;
   }
 
-  // 2. Fetch payments received within date range
-  const startTs = new Date(`${startDateStr}T00:00:00.000Z`);
-  const endTs = new Date(`${endDateStr}T23:59:59.999Z`);
+  // 2. Fetch payments received within date range (respecting Asia/Manila bounds)
+  const bounds = getManilaDateBounds(startDateStr, endDateStr);
+  const startTs = bounds.start;
+  const endTs = bounds.end;
 
   const paymentRows = await db
     .select({
@@ -823,7 +837,7 @@ export async function getBillingRevenueReport(
     totalCentavosCollected += Number(p.amountCentavos);
   }
 
-  // 3. System-wide overall balance outstanding
+  // 3. System-wide overall balance outstanding (posted active receivables)
   const [overallResult] = await db
     .select({
       totalOutstanding: sql<string>`COALESCE(SUM(${invoices.remainingBalanceCentavos}), 0)`,
@@ -832,7 +846,7 @@ export async function getBillingRevenueReport(
     .where(
       and(
         sql`${invoices.remainingBalanceCentavos} > 0`,
-        notInArray(invoices.status, ['VOID', 'CREDITED'])
+        notInArray(invoices.status, ['VOID', 'CREDITED', 'DRAFT'])
       )
     );
 
@@ -905,3 +919,309 @@ export async function getBillingRevenueReport(
     format: 'json',
   };
 }
+
+/**
+ * 5. DELINQUENT RECEIVABLES REPORT (Overdue accounts list)
+ * Fulfills PRODUCT.md Section 14 and docs/api-design.md Section 3.7
+ */
+export async function getDelinquentReceivablesReport(
+  query: DelinquentReceivablesQueryInput,
+  actor: ActorInfo,
+  ip?: string
+): Promise<{ data: DelinquentReportDto | string; format: 'json' | 'csv' }> {
+  const asOfDate = new Date();
+  const minDays = query.minDaysOverdue ?? 1;
+
+  // Query service accounts with overdue invoices
+  const rawRows = await db
+    .select({
+      serviceAccountId: serviceAccounts.id,
+      serviceAccountNumber: serviceAccounts.serviceAccountNumber,
+      serviceAccountStatus: serviceAccounts.status,
+      subscriberId: subscribers.id,
+      subscriberAccountNumber: subscribers.accountNumber,
+      subscriberFirstName: subscribers.firstName,
+      subscriberLastName: subscribers.lastName,
+      contactNumber: subscribers.contactNumber,
+      streetAddress: subscriberAddresses.streetAddress,
+      barangay: subscriberAddresses.barangay,
+      city: subscriberAddresses.municipality,
+      collectionAreaId: serviceAccounts.collectionAreaId,
+      collectionAreaName: collectionAreas.name,
+      collectionAreaBarangay: collectionAreas.barangay,
+      collectorId: collectionAreas.assignedCollectorId,
+      collectorName: users.fullName,
+      collectorUsername: users.username,
+      planId: servicePlans.id,
+      planName: servicePlans.name,
+      planServiceType: serviceTypes.code,
+      planMonthlyFeeCentavos: servicePlans.monthlyRecurringCentavos,
+      invoiceId: invoices.id,
+      invoiceNumber: invoices.invoiceNumber,
+      invoiceDueDate: invoices.dueDate,
+      remainingBalanceCentavos: invoices.remainingBalanceCentavos,
+    })
+    .from(serviceAccounts)
+    .innerJoin(invoices, eq(serviceAccounts.id, invoices.serviceAccountId))
+    .innerJoin(subscribers, eq(serviceAccounts.subscriberId, subscribers.id))
+    .leftJoin(subscriberAddresses, eq(serviceAccounts.installationAddressId, subscriberAddresses.id))
+    .leftJoin(servicePlans, eq(serviceAccounts.servicePlanId, servicePlans.id))
+    .leftJoin(serviceTypes, eq(servicePlans.serviceTypeId, serviceTypes.id))
+    .leftJoin(collectionAreas, eq(serviceAccounts.collectionAreaId, collectionAreas.id))
+    .leftJoin(users, eq(collectionAreas.assignedCollectorId, users.id))
+    .where(
+      and(
+        sql`${invoices.remainingBalanceCentavos} > 0`,
+        inArray(invoices.status, ['UNPAID', 'PARTIALLY_PAID', 'OVERDUE']),
+        query.collectionAreaId ? eq(serviceAccounts.collectionAreaId, query.collectionAreaId) : undefined,
+        query.collectorId ? eq(collectionAreas.assignedCollectorId, query.collectorId) : undefined,
+        query.planId ? eq(serviceAccounts.servicePlanId, query.planId) : undefined,
+        query.serviceType ? eq(serviceTypes.code, query.serviceType) : undefined,
+        query.barangay ? ilike(subscriberAddresses.barangay, `%${query.barangay}%`) : undefined
+      )
+    );
+
+  // Group by service account
+  const accountMap = new Map<
+    string,
+    {
+      account: DelinquentAccountDto;
+      oldestDue: string;
+      maxDaysOverdue: number;
+    }
+  >();
+
+  for (const row of rawRows) {
+    const daysOverdue = calculateDaysOverdue(row.invoiceDueDate, asOfDate);
+    const balance = Number(row.remainingBalanceCentavos);
+
+    if (!accountMap.has(row.serviceAccountId)) {
+      accountMap.set(row.serviceAccountId, {
+        account: {
+          subscriber: {
+            id: row.subscriberId,
+            accountNumber: row.subscriberAccountNumber,
+            firstName: row.subscriberFirstName,
+            lastName: row.subscriberLastName,
+            fullName: `${row.subscriberFirstName} ${row.subscriberLastName}`.trim(),
+            contactNumber: row.contactNumber || undefined,
+          },
+          serviceAccount: {
+            id: row.serviceAccountId,
+            serviceAccountNumber: row.serviceAccountNumber,
+            status: row.serviceAccountStatus,
+          },
+          plan: {
+            id: row.planId || '',
+            name: row.planName || 'Unknown Plan',
+            serviceType: row.planServiceType || 'INTERNET',
+            monthlyFeeCentavos: Number(row.planMonthlyFeeCentavos || 0),
+          },
+          collectionArea: {
+            id: row.collectionAreaId,
+            name: row.collectionAreaName,
+            barangay: row.collectionAreaBarangay,
+          },
+          collector: row.collectorId
+            ? {
+                id: row.collectorId,
+                fullName: row.collectorName || '',
+                username: row.collectorUsername || '',
+              }
+            : null,
+          monthsUnpaid: 0,
+          oldestUnpaidInvoice: {
+            id: row.invoiceId,
+            invoiceNumber: row.invoiceNumber,
+            dueDate: row.invoiceDueDate,
+            remainingBalanceCentavos: balance,
+            daysOverdue: daysOverdue,
+          },
+          lastPayment: null,
+          totalArrearsCentavos: 0,
+          daysOverdue: daysOverdue,
+          hasDunningNotice: false,
+          latestDunningNoticeNumber: null,
+          latestDunningNoticeStatus: null,
+        },
+        oldestDue: row.invoiceDueDate,
+        maxDaysOverdue: daysOverdue,
+      });
+    }
+
+    const entry = accountMap.get(row.serviceAccountId)!;
+    if (daysOverdue > 0) {
+      entry.account.monthsUnpaid += 1;
+      entry.account.totalArrearsCentavos += balance;
+    }
+
+    if (daysOverdue > entry.maxDaysOverdue) {
+      entry.maxDaysOverdue = daysOverdue;
+      entry.account.daysOverdue = daysOverdue;
+      entry.account.oldestUnpaidInvoice = {
+        id: row.invoiceId,
+        invoiceNumber: row.invoiceNumber,
+        dueDate: row.invoiceDueDate,
+        remainingBalanceCentavos: balance,
+        daysOverdue: daysOverdue,
+      };
+      entry.oldestDue = row.invoiceDueDate;
+    }
+  }
+
+  // Filter accounts with maxDaysOverdue >= minDays and totalArrearsCentavos > 0
+  let eligible = Array.from(accountMap.values())
+    .map((e) => e.account)
+    .filter((a) => a.daysOverdue >= minDays && a.totalArrearsCentavos > 0);
+
+  // Look up last payments and dunning notices for eligible accounts
+  if (eligible.length > 0) {
+    const subscriberIds = Array.from(new Set(eligible.map((a) => a.subscriber.id)));
+    const lastPayments = await db
+      .select({
+        paymentId: payments.id,
+        paymentNumber: payments.paymentNumber,
+        paymentDate: payments.paymentDate,
+        amountCentavos: payments.amountCentavos,
+        subscriberId: payments.subscriberId,
+      })
+      .from(payments)
+      .where(and(inArray(payments.subscriberId, subscriberIds), eq(payments.isReversed, false)))
+      .orderBy(desc(payments.paymentDate));
+
+    const paymentMap = new Map<string, typeof lastPayments[0]>();
+    for (const p of lastPayments) {
+      if (!paymentMap.has(p.subscriberId)) {
+        paymentMap.set(p.subscriberId, p);
+      }
+    }
+
+    const accountIds = eligible.map((a) => a.serviceAccount.id);
+    const notices = await db
+      .select({
+        serviceAccountId: dunningNotices.serviceAccountId,
+        noticeNumber: dunningNotices.noticeNumber,
+        status: dunningNotices.status,
+      })
+      .from(dunningNotices)
+      .where(inArray(dunningNotices.serviceAccountId, accountIds))
+      .orderBy(desc(dunningNotices.issuedAt));
+
+    const noticeMap = new Map<string, { noticeNumber: string; status: string }>();
+    for (const n of notices) {
+      if (!noticeMap.has(n.serviceAccountId)) {
+        noticeMap.set(n.serviceAccountId, { noticeNumber: n.noticeNumber, status: n.status });
+      }
+    }
+
+    for (const acc of eligible) {
+      const p = paymentMap.get(acc.subscriber.id);
+      if (p) {
+        acc.lastPayment = {
+          id: p.paymentId,
+          paymentNumber: p.paymentNumber,
+          paymentDate: p.paymentDate,
+          amountCentavos: Number(p.amountCentavos),
+        };
+      }
+      const notice = noticeMap.get(acc.serviceAccount.id);
+      if (notice) {
+        acc.hasDunningNotice = true;
+        acc.latestDunningNoticeNumber = notice.noticeNumber;
+        acc.latestDunningNoticeStatus = notice.status;
+      }
+    }
+  }
+
+  // Sorting
+  const sortBy = query.sortBy || 'daysOverdue';
+  const sortOrder = query.sortOrder || 'desc';
+
+  eligible.sort((a, b) => {
+    let cmp = 0;
+    if (sortBy === 'totalArrearsCentavos') {
+      cmp = a.totalArrearsCentavos - b.totalArrearsCentavos;
+    } else if (sortBy === 'oldestDueDate') {
+      cmp = new Date(a.oldestUnpaidInvoice.dueDate).getTime() - new Date(b.oldestUnpaidInvoice.dueDate).getTime();
+    } else {
+      cmp = a.daysOverdue - b.daysOverdue;
+    }
+    return sortOrder === 'asc' ? cmp : -cmp;
+  });
+
+  const totalArrears = eligible.reduce((sum, a) => sum + a.totalArrearsCentavos, 0);
+
+  // Structured audit log
+  await writeAuditLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    action: 'REPORT_EXPORTED',
+    entityType: 'REPORT',
+    entityId: 'DELINQUENT_RECEIVABLES',
+    newValues: {
+      format: query.format,
+      minDaysOverdue: minDays,
+      totalDelinquentAccounts: eligible.length,
+      totalArrearsCentavos: totalArrears,
+    },
+    ipAddress: ip,
+  });
+
+  if (query.format === 'csv') {
+    const headers = [
+      'Subscriber Account',
+      'Subscriber Name',
+      'Service Account',
+      'Area',
+      'Collector',
+      'Plan',
+      'Service Type',
+      'Months Unpaid',
+      'Oldest Unpaid Invoice',
+      'Oldest Due Date',
+      'Days Overdue',
+      'Last Payment Date',
+      'Last Payment (PHP)',
+      'Total Arrears (PHP)',
+      'Dunning Status',
+    ];
+
+    const rows = eligible.map((a) => [
+      a.subscriber.accountNumber,
+      a.subscriber.fullName,
+      a.serviceAccount.serviceAccountNumber,
+      a.collectionArea.name || 'Unassigned',
+      a.collector?.fullName || 'None',
+      a.plan.name,
+      a.plan.serviceType,
+      a.monthsUnpaid,
+      a.oldestUnpaidInvoice.invoiceNumber,
+      a.oldestUnpaidInvoice.dueDate,
+      a.daysOverdue,
+      a.lastPayment ? new Date(a.lastPayment.paymentDate).toISOString().split('T')[0] : 'None',
+      a.lastPayment ? (a.lastPayment.amountCentavos / 100).toFixed(2) : '0.00',
+      (a.totalArrearsCentavos / 100).toFixed(2),
+      a.latestDunningNoticeStatus || 'UNNOTIFIED',
+    ]);
+
+    const csvContent = toCsvString(headers, rows);
+    return { data: csvContent, format: 'csv' };
+  }
+
+  const page = query.page || 1;
+  const limit = query.limit || 50;
+  const offset = (page - 1) * limit;
+  const paginated = eligible.slice(offset, offset + limit);
+
+  return {
+    data: {
+      total: eligible.length,
+      page,
+      limit,
+      totalArrearsCentavos: totalArrears,
+      accounts: paginated,
+    },
+    format: 'json',
+  };
+}
+

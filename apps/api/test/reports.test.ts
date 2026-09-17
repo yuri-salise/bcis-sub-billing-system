@@ -371,6 +371,66 @@ describe('Reports, Dunning Management & Analytics Engine (Phase 7 - Reports)', (
       expect(res.payload).toContain('Juan Dela Cruz');
     });
 
+    it('supports groupBy=summary returning clean bucket totals with empty items array', async () => {
+      const res = await server.inject({
+        method: 'GET',
+        url: '/api/v1/reports/ar-aging?groupBy=summary',
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const json = JSON.parse(res.payload);
+      expect(json.data.groupBy).toBe('summary');
+      expect(json.data.items).toEqual([]);
+      expect(json.data.summary.totalReceivableCentavos).toBe(1500000);
+      expect(json.data.summary.totalOverdueCentavos).toBe(1400000);
+    });
+
+    it('exports summary CSV when groupBy=summary and format=csv', async () => {
+      const res = await server.inject({
+        method: 'GET',
+        url: '/api/v1/reports/ar-aging?groupBy=summary&format=csv',
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['content-type']).toContain('text/csv');
+      expect(res.payload).toContain('Aging Bucket,Amount (PHP)');
+      expect(res.payload).toContain('Current,1000.00');
+      expect(res.payload).toContain('Total Overdue,14000.00');
+      expect(res.payload).toContain('Total Receivable,15000.00');
+    });
+
+    it('excludes DRAFT invoices from AR aging calculation even if past due', async () => {
+      // Create a DRAFT invoice with past due date
+      await db.insert(invoices).values({
+        invoiceNumber: 'INV-REP-DRAFT-PAST',
+        serviceAccountId: accCurrentId,
+        subscriberId: sub1Id,
+        billingPeriodStart: daysAgo(100),
+        billingPeriodEnd: daysAgo(70),
+        issueDate: daysAgo(70),
+        dueDate: daysAgo(60),
+        subtotalCentavos: 999900,
+        vatCentavos: 0,
+        totalDueCentavos: 999900,
+        allocatedCentavos: 0,
+        remainingBalanceCentavos: 999900,
+        status: 'DRAFT', // DRAFT status!
+      });
+
+      const res = await server.inject({
+        method: 'GET',
+        url: '/api/v1/reports/ar-aging',
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const json = JSON.parse(res.payload);
+      // Total receivable must remain 1,500,000 centavos, ignoring 999,900 DRAFT invoice
+      expect(json.data.summary.totalReceivableCentavos).toBe(1500000);
+    });
+
     it('is also accessible via alias /api/v1/receivables/aging', async () => {
       const res = await server.inject({
         method: 'GET',
@@ -604,7 +664,166 @@ describe('Reports, Dunning Management & Analytics Engine (Phase 7 - Reports)', (
   });
 
   // ============================================================================
-  // 5. RBAC Permissions Enforcement
+  // 5. Delinquent Receivables Report (PRODUCT.md Section 14)
+  // ============================================================================
+  describe('GET /api/v1/receivables/delinquent & GET /api/v1/reports/delinquent', () => {
+    it('returns overdue accounts list with calculated arrears, oldest unpaid invoice, and plan details', async () => {
+      const res = await server.inject({
+        method: 'GET',
+        url: '/api/v1/receivables/delinquent',
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const json = JSON.parse(res.payload);
+      expect(json.success).toBe(true);
+      expect(json.data.total).toBe(4);
+      expect(json.data.totalArrearsCentavos).toBe(1200000); // 1.4M overdue - 200k payments FIFO allocated = 1.2M
+      expect(json.data.accounts.length).toBe(4);
+
+      // Verify account details
+      const first = json.data.accounts[0];
+      expect(first.subscriber).toBeDefined();
+      expect(first.serviceAccount).toBeDefined();
+      expect(first.plan).toBeDefined();
+      expect(first.oldestUnpaidInvoice).toBeDefined();
+      expect(first.oldestUnpaidInvoice.invoiceNumber).toBeDefined();
+      expect(first.oldestUnpaidInvoice.daysOverdue).toBeGreaterThan(0);
+      expect(first.totalArrearsCentavos).toBeGreaterThan(0);
+    });
+
+    it('filters delinquent accounts by barangay', async () => {
+      const resCasisang = await server.inject({
+        method: 'GET',
+        url: '/api/v1/receivables/delinquent?barangay=Casisang',
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(resCasisang.statusCode).toBe(200);
+      const jsonCasisang = JSON.parse(resCasisang.payload);
+      expect(jsonCasisang.data.total).toBe(2);
+      expect(jsonCasisang.data.accounts.every((a: any) => a.subscriber.fullName === 'Juan Dela Cruz')).toBe(true);
+
+      const resSumpong = await server.inject({
+        method: 'GET',
+        url: '/api/v1/receivables/delinquent?barangay=Sumpong',
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(resSumpong.statusCode).toBe(200);
+      const jsonSumpong = JSON.parse(resSumpong.payload);
+      expect(jsonSumpong.data.total).toBe(2);
+      expect(jsonSumpong.data.accounts.every((a: any) => a.subscriber.fullName === 'Maria Santos')).toBe(true);
+    });
+
+    it('supports sorting by totalArrearsCentavos and daysOverdue', async () => {
+      const resAsc = await server.inject({
+        method: 'GET',
+        url: '/api/v1/receivables/delinquent?sortBy=totalArrearsCentavos&sortOrder=asc',
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(resAsc.statusCode).toBe(200);
+      const jsonAsc = JSON.parse(resAsc.payload);
+      expect(jsonAsc.data.accounts[0].totalArrearsCentavos).toBe(200000); // Lowest arrears first
+
+      const resDesc = await server.inject({
+        method: 'GET',
+        url: '/api/v1/receivables/delinquent?sortBy=daysOverdue&sortOrder=desc',
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(resDesc.statusCode).toBe(200);
+      const jsonDesc = JSON.parse(resDesc.payload);
+      expect(jsonDesc.data.accounts[0].daysOverdue).toBeGreaterThanOrEqual(100); // 105 days overdue
+    });
+
+    it('supports pagination with page and limit parameters', async () => {
+      const res = await server.inject({
+        method: 'GET',
+        url: '/api/v1/receivables/delinquent?page=1&limit=2',
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const json = JSON.parse(res.payload);
+      expect(json.data.total).toBe(4);
+      expect(json.data.page).toBe(1);
+      expect(json.data.limit).toBe(2);
+      expect(json.data.accounts.length).toBe(2);
+    });
+
+    it('exports delinquent accounts to CSV and sanitizes formula injection attempts', async () => {
+      // Create a subscriber with formula injection in name
+      const subFormulaRes = await server.inject({
+        method: 'POST',
+        url: '/api/v1/subscribers',
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          firstName: '=cmd|\' /C calc\'!A0',
+          lastName: '+SUM(1,2)',
+          contactNumber: '09170009999',
+          streetAddress: '@DDE("cmd";"calc")',
+          barangay: '-FormulaZone',
+          municipality: 'Malaybalay',
+        },
+      });
+      const subFormulaId = JSON.parse(subFormulaRes.payload).data.id;
+
+      const saRes = await server.inject({
+        method: 'POST',
+        url: '/api/v1/service-accounts',
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          subscriberId: subFormulaId,
+          servicePlanId: testPlanId,
+          collectionAreaId: testAreaId,
+          status: 'ACTIVE',
+        },
+      });
+      const saId = JSON.parse(saRes.payload).data.id;
+
+      await db.insert(invoices).values({
+        invoiceNumber: 'INV-FORMULA-TEST',
+        serviceAccountId: saId,
+        subscriberId: subFormulaId,
+        billingPeriodStart: daysAgo(50),
+        billingPeriodEnd: daysAgo(20),
+        issueDate: daysAgo(20),
+        dueDate: daysAgo(10),
+        subtotalCentavos: 100000,
+        vatCentavos: 0,
+        totalDueCentavos: 100000,
+        allocatedCentavos: 0,
+        remainingBalanceCentavos: 100000,
+        status: 'UNPAID',
+      });
+
+      const res = await server.inject({
+        method: 'GET',
+        url: '/api/v1/receivables/delinquent?format=csv',
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['content-type']).toContain('text/csv');
+      expect(res.headers['content-disposition']).toContain('delinquent-accounts.csv');
+
+      // The raw CSV text must contain prefixed single quotes before =, +, @, - to prevent execution
+      expect(res.payload).toContain('\'=cmd|\' /C calc\'!A0');
+      expect(res.payload).toContain('Subscriber Account,Subscriber Name');
+    });
+
+    it('is also accessible via alias /api/v1/reports/delinquent', async () => {
+      const res = await server.inject({
+        method: 'GET',
+        url: '/api/v1/reports/delinquent',
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const json = JSON.parse(res.payload);
+      expect(json.success).toBe(true);
+      expect(json.data.total).toBeGreaterThanOrEqual(4);
+    });
+  });
+
+  // ============================================================================
+  // 6. RBAC Permissions Enforcement
   // ============================================================================
   describe('RBAC Authorization for Reports', () => {
     it('grants access to Accounting user for financial and operational reports', async () => {
@@ -628,6 +847,13 @@ describe('Reports, Dunning Management & Analytics Engine (Phase 7 - Reports)', (
         headers: { authorization: `Bearer ${accountingToken}` },
       });
       expect(resCandidates.statusCode).toBe(200);
+
+      const resDelinquent = await server.inject({
+        method: 'GET',
+        url: '/api/v1/receivables/delinquent',
+        headers: { authorization: `Bearer ${accountingToken}` },
+      });
+      expect(resDelinquent.statusCode).toBe(200);
     });
 
     it('grants Collection Supervisor access to operational reports but blocks financial reports', async () => {
@@ -646,6 +872,14 @@ describe('Reports, Dunning Management & Analytics Engine (Phase 7 - Reports)', (
         headers: { authorization: `Bearer ${supervisorToken}` },
       });
       expect(resAging.statusCode).toBe(200);
+
+      // Supervisor has receivable.view
+      const resDelinquent = await server.inject({
+        method: 'GET',
+        url: '/api/v1/receivables/delinquent',
+        headers: { authorization: `Bearer ${supervisorToken}` },
+      });
+      expect(resDelinquent.statusCode).toBe(200);
 
       // Supervisor does NOT have reports.financial
       const resDaily = await server.inject({
@@ -679,11 +913,18 @@ describe('Reports, Dunning Management & Analytics Engine (Phase 7 - Reports)', (
         headers: { authorization: `Bearer ${techToken}` },
       });
       expect(resRev.statusCode).toBe(403);
+
+      const resDelinquent = await server.inject({
+        method: 'GET',
+        url: '/api/v1/receivables/delinquent',
+        headers: { authorization: `Bearer ${techToken}` },
+      });
+      expect(resDelinquent.statusCode).toBe(403);
     });
   });
 
   // ============================================================================
-  // 6. Structured Audit Logging
+  // 7. Structured Audit Logging
   // ============================================================================
   describe('Structured Audit Logging for Reports', () => {
     it('persists REPORT_EXPORTED audit entries on report generation', async () => {
@@ -699,6 +940,7 @@ describe('Reports, Dunning Management & Analytics Engine (Phase 7 - Reports)', (
       expect(entityIds).toContain('DISCONNECTION_CANDIDATES');
       expect(entityIds).toContain('DAILY_COLLECTION');
       expect(entityIds).toContain('BILLING_REVENUE');
+      expect(entityIds).toContain('DELINQUENT_RECEIVABLES');
     });
   });
 });

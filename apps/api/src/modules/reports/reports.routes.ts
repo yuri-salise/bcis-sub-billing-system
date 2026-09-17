@@ -5,12 +5,14 @@ import {
   disconnectionCandidatesQuerySchema,
   dailyCollectionQuerySchema,
   billingRevenueQuerySchema,
+  delinquentReceivablesQuerySchema,
 } from '@bcis/validation';
 import {
   getArAgingReport,
   getDisconnectionCandidatesReport,
   getDailyCollectionReport,
   getBillingRevenueReport,
+  getDelinquentReceivablesReport,
 } from './reports.service.js';
 import { extractActor } from '../../utils/audit.js';
 
@@ -254,6 +256,53 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance
       }
     }
   );
+
+  /**
+   * 5. Delinquent Receivables Report (Overdue accounts list)
+   * Permission: receivable.view or receivable.view_aging
+   */
+  fastify.get(
+    '/delinquent',
+    { preHandler: [fastify.authenticate, requirePermission(['receivable.view', 'receivable.view_aging'], 'any')] },
+    async (request, reply) => {
+      const parsed = delinquentReceivablesQuerySchema.safeParse(request.query);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid delinquent query parameters',
+          details: parsed.error.issues.map((i: any) => ({ field: i.path.join('.'), issue: i.message })),
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const actor = extractActor(request);
+      try {
+        const result = await getDelinquentReceivablesReport(parsed.data, actor, request.ip);
+        if (result.format === 'csv') {
+          return reply
+            .header('Content-Type', 'text/csv; charset=utf-8')
+            .header('Content-Disposition', 'attachment; filename="delinquent-accounts.csv"')
+            .send(result.data);
+        }
+        return reply.send({
+          success: true,
+          data: result.data,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (err: any) {
+        const statusCode = err.statusCode || 500;
+        return reply.status(statusCode).send({
+          statusCode,
+          error: err.name || 'Error',
+          code: err.code || 'DELINQUENT_REPORT_ERROR',
+          message: err.message || 'Failed to generate delinquent receivables report',
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+  );
 };
 
 /**
@@ -281,6 +330,37 @@ export const receivablesRoutes: FastifyPluginAsync = async (fastify: FastifyInst
         return reply
           .header('Content-Type', 'text/csv; charset=utf-8')
           .header('Content-Disposition', 'attachment; filename="ar-aging-report.csv"')
+          .send(result.data);
+      }
+      return reply.send({
+        success: true,
+        data: result.data,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  );
+
+  fastify.get(
+    '/delinquent',
+    { preHandler: [fastify.authenticate, requirePermission(['receivable.view', 'receivable.view_aging'], 'any')] },
+    async (request, reply) => {
+      const parsed = delinquentReceivablesQuerySchema.safeParse(request.query);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid parameters',
+          details: parsed.error.issues.map((i: any) => ({ field: i.path.join('.'), issue: i.message })),
+          timestamp: new Date().toISOString(),
+        });
+      }
+      const actor = extractActor(request);
+      const result = await getDelinquentReceivablesReport(parsed.data, actor, request.ip);
+      if (result.format === 'csv') {
+        return reply
+          .header('Content-Type', 'text/csv; charset=utf-8')
+          .header('Content-Disposition', 'attachment; filename="delinquent-accounts.csv"')
           .send(result.data);
       }
       return reply.send({
@@ -322,3 +402,4 @@ export const receivablesRoutes: FastifyPluginAsync = async (fastify: FastifyInst
     }
   );
 };
+

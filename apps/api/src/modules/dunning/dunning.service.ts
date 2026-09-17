@@ -41,7 +41,6 @@ function extractYearMonth(dateStr?: string): string {
  */
 export async function generateDunningNoticeNumber(
   dateStr?: string,
-  offset = 1,
   tx: any = db
 ): Promise<string> {
   const yearMonth = extractYearMonth(dateStr);
@@ -65,7 +64,7 @@ export async function generateDunningNoticeNumber(
     }
   }
 
-  const nextSeq = String(maxSeq + offset).padStart(4, '0');
+  const nextSeq = String(maxSeq + 1).padStart(4, '0');
   return `${prefix}${nextSeq}`;
 }
 
@@ -81,7 +80,7 @@ export async function generateDunningNotices(
   const now = new Date();
 
   return await db.transaction(async (tx) => {
-    // 1. Find active service accounts matching criteria with unpaid invoices
+    // 1. Find active service accounts matching criteria with finalized unpaid invoices
     const openInvoiceRows = await tx
       .select({
         serviceAccountId: serviceAccounts.id,
@@ -95,13 +94,13 @@ export async function generateDunningNotices(
         and(
           eq(serviceAccounts.status, 'ACTIVE'),
           sql`${invoices.remainingBalanceCentavos} > 0`,
-          notInArray(invoices.status, ['VOID', 'CREDITED']),
+          inArray(invoices.status, ['UNPAID', 'PARTIALLY_PAID', 'OVERDUE']),
           input.serviceAccountId ? eq(serviceAccounts.id, input.serviceAccountId) : undefined,
           input.collectionAreaId ? eq(serviceAccounts.collectionAreaId, input.collectionAreaId) : undefined
         )
       );
 
-    // Group by service account to find max days overdue, oldest due date, and total balance
+    // Group by service account to find max days overdue, oldest due date, and total overdue balance
     const candidateMap = new Map<
       string,
       {
@@ -128,21 +127,46 @@ export async function generateDunningNotices(
       }
 
       const entry = candidateMap.get(row.serviceAccountId)!;
-      entry.totalOverdueCentavos += bal;
+      // Only overdue invoices (daysOverdue > 0) contribute to arrears / overdue balance
+      if (daysOverdue > 0) {
+        entry.totalOverdueCentavos += bal;
+      }
       if (daysOverdue > entry.maxDaysOverdue) {
         entry.maxDaysOverdue = daysOverdue;
         entry.oldestDueDate = row.invoiceDueDate;
       }
     }
 
-    // Filter accounts exceeding minDaysOverdue
+    // Filter accounts exceeding minDaysOverdue with actual overdue arrears
     const eligibleAccounts = Array.from(candidateMap.values()).filter(
       (a) => a.maxDaysOverdue >= minDays && a.totalOverdueCentavos > 0
     );
 
     const generatedNotices: DunningNoticeDto[] = [];
     let skippedCount = 0;
-    let seqOffset = 1;
+
+    // Lock and get initial sequence once for the entire batch to guarantee collision-free, gap-free numbering
+    const yearMonth = extractYearMonth();
+    const prefix = `DUN-${yearMonth}-`;
+
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtext(${'dunning_numbering_' + yearMonth}))`
+    );
+
+    const existing = await tx
+      .select({ noticeNumber: dunningNotices.noticeNumber })
+      .from(dunningNotices)
+      .where(ilike(dunningNotices.noticeNumber, `${prefix}%`));
+
+    let maxSeq = 0;
+    for (const row of existing) {
+      const part = row.noticeNumber.slice(prefix.length);
+      const num = parseInt(part, 10);
+      if (!isNaN(num) && num > maxSeq) {
+        maxSeq = num;
+      }
+    }
+    let currentSeq = maxSeq;
 
     for (const acc of eligibleAccounts) {
       // Determine notice level if not explicitly provided
@@ -171,7 +195,8 @@ export async function generateDunningNotices(
         continue;
       }
 
-      const noticeNumber = await generateDunningNoticeNumber(undefined, seqOffset++, tx);
+      currentSeq++;
+      const noticeNumber = `${prefix}${String(currentSeq).padStart(4, '0')}`;
 
       const [inserted] = await tx
         .insert(dunningNotices)

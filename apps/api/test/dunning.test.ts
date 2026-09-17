@@ -239,11 +239,17 @@ describe('Dunning Management Module (Phase 7 - Dunning)', () => {
       const notices = json.data.generated;
       expect(notices).toHaveLength(3);
 
-      // Verify notice numbers start with DUN-YYYYMM-
+      // Verify notice numbers start with DUN-YYYYMM- and are strictly sequential without gaps
       for (const n of notices) {
         expect(n.noticeNumber).toMatch(/^DUN-\d{6}-\d{4}$/);
         expect(n.status).toBe('ISSUED');
       }
+
+      const noticeNumbers = notices.map((n: any) => n.noticeNumber).sort();
+      const currentYearMonth = new Date().toISOString().slice(0, 7).replace('-', '');
+      expect(noticeNumbers[0]).toBe(`DUN-${currentYearMonth}-0001`);
+      expect(noticeNumbers[1]).toBe(`DUN-${currentYearMonth}-0002`);
+      expect(noticeNumbers[2]).toBe(`DUN-${currentYearMonth}-0003`);
 
       // Check auto notice levels
       const n1 = notices.find((n: any) => n.serviceAccountId === sa1Id);
@@ -276,6 +282,138 @@ describe('Dunning Management Module (Phase 7 - Dunning)', () => {
       expect(json.data.skippedCount).toBe(3); // All 3 skipped
     });
 
+    it('does not include current (not yet overdue) invoices in dunning overdue balance', async () => {
+      // Create a subscriber with 1 overdue invoice (?1,000) and 1 current invoice (?2,000 due in future)
+      const subRes = await server.inject({
+        method: 'POST',
+        url: '/api/v1/subscribers',
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          firstName: 'Current',
+          lastName: 'Isolation',
+          contactNumber: '09179998877',
+          streetAddress: 'Zone 5',
+          barangay: 'Sumpong',
+        },
+      });
+      const subId = JSON.parse(subRes.payload).data.id;
+
+      const saRes = await server.inject({
+        method: 'POST',
+        url: '/api/v1/service-accounts',
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          subscriberId: subId,
+          servicePlanId: testPlanId,
+          collectionAreaId: testAreaId,
+          status: 'ACTIVE',
+        },
+      });
+      const saId = JSON.parse(saRes.payload).data.id;
+
+      // Overdue invoice (50 days overdue)
+      await db.insert(invoices).values({
+        invoiceNumber: 'INV-DUN-OVERDUE-1',
+        serviceAccountId: saId,
+        subscriberId: subId,
+        billingPeriodStart: daysAgo(90),
+        billingPeriodEnd: daysAgo(60),
+        issueDate: daysAgo(60),
+        dueDate: daysAgo(50),
+        subtotalCentavos: 100000,
+        totalDueCentavos: 100000,
+        allocatedCentavos: 0,
+        remainingBalanceCentavos: 100000,
+        status: 'UNPAID',
+      });
+
+      // Current invoice (due in 20 days)
+      await db.insert(invoices).values({
+        invoiceNumber: 'INV-DUN-CURRENT-1',
+        serviceAccountId: saId,
+        subscriberId: subId,
+        billingPeriodStart: daysAgo(10),
+        billingPeriodEnd: daysAhead(20),
+        issueDate: daysAgo(1),
+        dueDate: daysAhead(20),
+        subtotalCentavos: 200000,
+        totalDueCentavos: 200000,
+        allocatedCentavos: 0,
+        remainingBalanceCentavos: 200000,
+        status: 'UNPAID',
+      });
+
+      const genRes = await server.inject({
+        method: 'POST',
+        url: '/api/v1/dunning/notices/generate',
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { serviceAccountId: saId, minDaysOverdue: 30 },
+      });
+
+      expect(genRes.statusCode).toBe(201);
+      const notice = JSON.parse(genRes.payload).data.generated[0];
+      expect(notice).toBeDefined();
+      // Overdue balance MUST be exactly 100,000 centavos, NOT 300,000!
+      expect(notice.overdueBalanceCentavos).toBe(100000);
+      expect(notice.noticeNumber).toMatch(/^DUN-\d{6}-0004$/);
+    });
+
+    it('ignores DRAFT invoices when determining dunning eligibility', async () => {
+      // Create account with ONLY a DRAFT invoice with past dueDate
+      const subRes = await server.inject({
+        method: 'POST',
+        url: '/api/v1/subscribers',
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          firstName: 'Draft',
+          lastName: 'Subscriber',
+          contactNumber: '09171112233',
+          streetAddress: 'Zone 9',
+          barangay: 'Casisang',
+        },
+      });
+      const subId = JSON.parse(subRes.payload).data.id;
+
+      const saRes = await server.inject({
+        method: 'POST',
+        url: '/api/v1/service-accounts',
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          subscriberId: subId,
+          servicePlanId: testPlanId,
+          collectionAreaId: testAreaId,
+          status: 'ACTIVE',
+        },
+      });
+      const saId = JSON.parse(saRes.payload).data.id;
+
+      await db.insert(invoices).values({
+        invoiceNumber: 'INV-DUN-DRAFT-1',
+        serviceAccountId: saId,
+        subscriberId: subId,
+        billingPeriodStart: daysAgo(100),
+        billingPeriodEnd: daysAgo(70),
+        issueDate: daysAgo(70),
+        dueDate: daysAgo(60),
+        subtotalCentavos: 150000,
+        totalDueCentavos: 150000,
+        allocatedCentavos: 0,
+        remainingBalanceCentavos: 150000,
+        status: 'DRAFT', // DRAFT status!
+      });
+
+      const genRes = await server.inject({
+        method: 'POST',
+        url: '/api/v1/dunning/notices/generate',
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { serviceAccountId: saId, minDaysOverdue: 30 },
+      });
+
+      expect(genRes.statusCode).toBe(201);
+      const json = JSON.parse(genRes.payload);
+      expect(json.data.count).toBe(0); // DRAFT invoice ignored
+    });
+
     it('supports alias POST /api/v1/dunning/generate', async () => {
       const res = await server.inject({
         method: 'POST',
@@ -287,7 +425,7 @@ describe('Dunning Management Module (Phase 7 - Dunning)', () => {
       expect(res.statusCode).toBe(201);
       const json = JSON.parse(res.payload);
       expect(json.success).toBe(true);
-      expect(json.data.skippedCount).toBe(3);
+      expect(json.data.skippedCount).toBe(4);
     });
   });
 
@@ -305,8 +443,8 @@ describe('Dunning Management Module (Phase 7 - Dunning)', () => {
       expect(res.statusCode).toBe(200);
       const json = JSON.parse(res.payload);
       expect(json.success).toBe(true);
-      expect(json.meta.total).toBe(3);
-      expect(json.data).toHaveLength(3);
+      expect(json.meta.total).toBe(4);
+      expect(json.data).toHaveLength(4);
 
       const notice = json.data[0];
       expect(notice.noticeNumber).toBeDefined();
@@ -325,7 +463,7 @@ describe('Dunning Management Module (Phase 7 - Dunning)', () => {
 
       expect(res.statusCode).toBe(200);
       const json = JSON.parse(res.payload);
-      expect(json.data).toHaveLength(3);
+      expect(json.data).toHaveLength(4);
     });
 
     it('filters notices by noticeLevel', async () => {

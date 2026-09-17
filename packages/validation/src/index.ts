@@ -666,9 +666,24 @@ export const billingRevenueQuerySchema = z.object({
   format: reportFormatEnum,
 });
 
+export const delinquentReceivablesQuerySchema = z.object({
+  collectorId: z.string().uuid('Invalid collector ID').optional(),
+  collectionAreaId: z.string().uuid('Invalid collection area ID').optional(),
+  planId: z.string().uuid('Invalid plan ID').optional(),
+  serviceType: z.string().trim().optional(),
+  minDaysOverdue: z.coerce.number().int().nonnegative('Minimum days overdue must be non-negative').default(1),
+  barangay: z.string().trim().optional(),
+  sortBy: z.enum(['daysOverdue', 'totalArrearsCentavos', 'oldestDueDate']).default('daysOverdue'),
+  sortOrder: z.enum(['asc', 'desc']).default('desc'),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(200).default(50),
+  format: reportFormatEnum,
+});
+
 export type ArAgingQueryInput = z.infer<typeof arAgingQuerySchema>;
 export type DisconnectionCandidatesQueryInput = z.infer<typeof disconnectionCandidatesQuerySchema>;
 export type DailyCollectionQueryInput = z.infer<typeof dailyCollectionQuerySchema>;
 export type BillingRevenueQueryInput = z.infer<typeof billingRevenueQuerySchema>;
+export type DelinquentReceivablesQueryInput = z.infer<typeof delinquentReceivablesQuerySchema>;
 
 

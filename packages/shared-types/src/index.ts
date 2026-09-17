@@ -800,3 +800,62 @@ export interface BillingRevenueReportDto {
   collectionEfficiencyPercent: number;
   statusBreakdown: InvoiceStatusBreakdownDto[];
 }
+
+export interface DelinquentAccountDto {
+  subscriber: {
+    id: string;
+    accountNumber: string;
+    firstName: string;
+    lastName: string;
+    fullName: string;
+    contactNumber?: string;
+  };
+  serviceAccount: {
+    id: string;
+    serviceAccountNumber: string;
+    status: string;
+  };
+  plan: {
+    id: string;
+    name: string;
+    serviceType: string;
+    monthlyFeeCentavos: number;
+  };
+  collectionArea: {
+    id: string | null;
+    name: string | null;
+    barangay?: string | null;
+  };
+  collector: {
+    id: string;
+    fullName: string;
+    username: string;
+  } | null;
+  monthsUnpaid: number;
+  oldestUnpaidInvoice: {
+    id: string;
+    invoiceNumber: string;
+    dueDate: string;
+    remainingBalanceCentavos: number;
+    daysOverdue: number;
+  };
+  lastPayment: {
+    id: string;
+    paymentNumber: string;
+    paymentDate: Date | string;
+    amountCentavos: number;
+  } | null;
+  totalArrearsCentavos: number;
+  daysOverdue: number;
+  hasDunningNotice: boolean;
+  latestDunningNoticeNumber: string | null;
+  latestDunningNoticeStatus: string | null;
+}
+
+export interface DelinquentReportDto {
+  total: number;
+  page: number;
+  limit: number;
+  totalArrearsCentavos: number;
+  accounts: DelinquentAccountDto[];
+}
