@@ -235,16 +235,6 @@ describe('Reports, Dunning Management & Analytics Engine (Phase 7 - Reports)', (
   });
 
   afterAll(async () => {
-    await db.delete(dunningNotices);
-    await db.delete(serviceOrders);
-    await db.delete(receipts);
-    await db.delete(paymentAllocations);
-    await db.delete(payments);
-    await db.delete(subscriberLedger);
-    await db.delete(invoices);
-    await db.delete(serviceAccounts);
-    await db.delete(subscriberAddresses);
-    await db.delete(subscribers);
     await server.close();
   });
 

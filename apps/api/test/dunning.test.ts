@@ -212,12 +212,6 @@ describe('Dunning Management Module (Phase 7 - Dunning)', () => {
   });
 
   afterAll(async () => {
-    await db.delete(dunningNotices);
-    await db.delete(serviceOrders);
-    await db.delete(invoices);
-    await db.delete(serviceAccounts);
-    await db.delete(subscriberAddresses);
-    await db.delete(subscribers);
     await server.close();
   });
 

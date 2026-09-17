@@ -60,6 +60,39 @@ describe('Collection Areas, Routes & Route Sheets Module (Phase 6)', () => {
       .where(eq(users.username, 'collector1'))
       .limit(1);
     collectorUserId = collector.id;
+
+    // Ensure prerequisite service plan exists
+    let [plan] = await db.select().from(servicePlans).limit(1);
+    if (!plan) {
+      await server.inject({
+        method: 'POST',
+        url: '/api/v1/plans',
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          name: 'Collections Standard Plan',
+          serviceType: 'INTERNET',
+          monthlyFeeCentavos: 129900,
+        },
+      });
+    }
+
+    // Ensure prerequisite subscriber exists
+    let [sub] = await db.select().from(subscribers).limit(1);
+    if (!sub) {
+      await server.inject({
+        method: 'POST',
+        url: '/api/v1/subscribers',
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          firstName: 'Juan',
+          lastName: 'Dela Cruz',
+          contactNumber: '09171234567',
+          streetAddress: 'Purok 1',
+          barangay: 'Casisang',
+          municipality: 'Malaybalay',
+        },
+      });
+    }
   });
 
   afterAll(async () => {
