@@ -11,11 +11,13 @@ import {
   gcashTransactions,
   collectionBatches,
   collectionAreas,
+  collectionRoutes,
   invoices,
   invoiceItems,
   subscriberAddresses,
   subscribers,
   serviceAccounts,
+  serviceOrders,
   servicePlans,
   subscriberLedger,
   users,
@@ -40,19 +42,21 @@ describe('Payments, FIFO Allocation, Receipts, GCash & Remittance Engine (Phase 
     await seedDatabase();
 
     // Clean up test data from prior runs
+    await db.delete(serviceOrders);
     await db.delete(paymentReversals);
     await db.delete(receipts);
     await db.delete(paymentAllocations);
     await db.delete(payments);
     await db.delete(gcashTransactions);
-    await db.delete(collectionBatches);
-    await db.delete(collectionAreas);
     await db.delete(invoiceItems);
     await db.delete(invoices);
     await db.delete(subscriberLedger);
     await db.delete(serviceAccounts);
     await db.delete(subscriberAddresses);
     await db.delete(subscribers);
+    await db.delete(collectionRoutes);
+    await db.delete(collectionBatches);
+    await db.delete(collectionAreas);
 
     server = buildServer();
     await server.ready();

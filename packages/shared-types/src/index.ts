@@ -51,6 +51,11 @@ export type PermissionCode =
   | 'collection.reconcile'
   | 'collection.manage_staff'
   | 'remittances.manage'
+  | 'collections.manage'
+  | 'service_orders.create'
+  | 'service_orders.read'
+  | 'service_orders.update'
+  | 'service_orders.complete'
   | 'receivable.view'
   | 'receivable.view_aging'
   | 'service_control.view'
@@ -264,6 +269,8 @@ export interface ServiceAccountDto {
   servicePlanId: string;
   installationAddressId: string | null;
   collectorId: string | null;
+  collectionAreaId?: string | null;
+  collectionRouteId?: string | null;
   billingDayOfMonth: number;
   currentRateCentavos: number;
   status: string;
@@ -464,5 +471,169 @@ export interface CollectionBatchDto {
     name: string;
   };
 }
+
+// Service Order Lifecycle Types
+export enum ServiceOrderType {
+  INSTALLATION = 'INSTALLATION',
+  REPAIR = 'REPAIR',
+  DISCONNECTION = 'DISCONNECTION',
+  RECONNECTION = 'RECONNECTION',
+  RELOCATION = 'RELOCATION',
+  TRANSFER = 'TRANSFER',
+}
+
+export enum ServiceOrderStatus {
+  PENDING = 'PENDING',
+  ASSIGNED = 'ASSIGNED',
+  IN_PROGRESS = 'IN_PROGRESS',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+}
+
+export enum ServiceOrderPriority {
+  LOW = 'LOW',
+  NORMAL = 'NORMAL',
+  HIGH = 'HIGH',
+  URGENT = 'URGENT',
+}
+
+export interface MaterialUsedItem {
+  item: string;
+  quantity: number;
+  unit?: string;
+  costCentavos?: number;
+}
+
+export interface ServiceOrderDto {
+  id: string;
+  orderNumber: string;
+  orderType: ServiceOrderType | string;
+  status: ServiceOrderStatus | string;
+  serviceAccountId: string;
+  subscriberId: string;
+  assignedTechnicianId: string | null;
+  priority: ServiceOrderPriority | string;
+  scheduledDate: string | null;
+  completedAt: Date | string | null;
+  cancelledAt: Date | string | null;
+  cancellationReason: string | null;
+  targetAddressId: string | null;
+  description: string | null;
+  resolutionNotes: string | null;
+  materialsUsed: MaterialUsedItem[] | null;
+  feeCentavos: number;
+  disconnectionType?: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  serviceAccount?: {
+    id: string;
+    serviceAccountNumber: string;
+    status: string;
+    planName?: string;
+    currentRateCentavos?: number;
+  };
+  subscriber?: {
+    id: string;
+    accountNumber: string;
+    firstName: string;
+    lastName: string;
+    contactNumber?: string;
+  };
+  assignedTechnician?: {
+    id: string;
+    username: string;
+    fullName: string;
+  } | null;
+}
+
+// Collection Area DTO
+export interface CollectionAreaDto {
+  id: string;
+  name: string;
+  code?: string | null;
+  description?: string | null;
+  barangay?: string | null;
+  city?: string;
+  assignedCollectorId?: string | null;
+  isActive?: boolean;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+  assignedCollector?: {
+    id: string;
+    username: string;
+    fullName: string;
+  } | null;
+  routeCount?: number;
+  accountCount?: number;
+}
+
+// Collection Route DTO
+export interface CollectionRouteDto {
+  id: string;
+  collectionAreaId: string;
+  routeCode: string;
+  name: string;
+  description?: string | null;
+  assignedCollectorId?: string | null;
+  isActive?: boolean;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+  collectionArea?: {
+    id: string;
+    name: string;
+  };
+  assignedCollector?: {
+    id: string;
+    username: string;
+    fullName: string;
+  } | null;
+}
+
+// Route Sheet Account Item
+export interface RouteSheetAccountItem {
+  serviceAccountId: string;
+  serviceAccountNumber: string;
+  subscriberId: string;
+  subscriberAccountNumber: string;
+  subscriberName: string;
+  contactNumber: string;
+  address: string;
+  barangay: string;
+  collectionRouteId?: string | null;
+  servicePlanName: string;
+  monthlyRateCentavos: number;
+  status: string;
+  openInvoiceCount: number;
+  oldestInvoiceDueDate: string | null;
+  totalArrearsCentavos: number;
+  advanceCreditCentavos: number;
+  netDueCentavos: number;
+}
+
+// Route Sheet DTO
+export interface RouteSheetDto {
+  area: {
+    id: string;
+    name: string;
+    code?: string | null;
+    barangay?: string | null;
+  };
+  route?: {
+    id: string;
+    routeCode: string;
+    name: string;
+  } | null;
+  collector: {
+    id: string;
+    username: string;
+    fullName: string;
+  } | null;
+  generatedAt: string;
+  totalAccounts: number;
+  totalDelinquentAccounts: number;
+  totalArrearsCentavos: number;
+  accounts: RouteSheetAccountItem[];
+}
+
 
 

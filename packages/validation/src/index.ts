@@ -153,6 +153,8 @@ export const createServiceAccountSchema = z.object({
   province: z.string().trim().default('Bukidnon').optional(),
   postalCode: z.string().trim().default('8700').optional(),
   collectorId: z.string().uuid('Invalid collector ID').optional().nullable(),
+  collectionAreaId: z.string().uuid('Invalid collection area ID').optional().nullable(),
+  collectionRouteId: z.string().uuid('Invalid collection route ID').optional().nullable(),
   billingDayOfMonth: z.number().int('Billing day must be an integer').min(1).max(31).default(1),
   currentRateCentavos: z.number().int('Current rate must be an integer centavos').nonnegative('Current rate cannot be negative').optional(),
   status: serviceAccountStatusEnum.default('PENDING'),
@@ -164,10 +166,19 @@ export const updateServiceAccountSchema = z.object({
   servicePlanId: z.string().uuid('Invalid service plan ID').optional(),
   installationAddressId: z.string().uuid('Invalid installation address ID').optional().nullable(),
   collectorId: z.string().uuid('Invalid collector ID').optional().nullable(),
+  collectionAreaId: z.string().uuid('Invalid collection area ID').optional().nullable(),
+  collectionRouteId: z.string().uuid('Invalid collection route ID').optional().nullable(),
   billingDayOfMonth: z.number().int('Billing day must be an integer').min(1).max(31).optional(),
   currentRateCentavos: z.number().int('Current rate must be an integer centavos').nonnegative('Current rate cannot be negative').optional(),
   status: serviceAccountStatusEnum.optional(),
   activationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Activation date must be YYYY-MM-DD').optional().nullable(),
+});
+
+// Service Account Collector/Route Assignment Schema (PATCH /service-accounts/:id/collector)
+export const assignServiceAccountCollectorSchema = z.object({
+  collectorId: z.string().uuid('Invalid collector ID').optional().nullable(),
+  collectionAreaId: z.string().uuid('Invalid collection area ID').optional().nullable(),
+  collectionRouteId: z.string().uuid('Invalid collection route ID').optional().nullable(),
 });
 
 // Service Account Status Change Schema
@@ -381,4 +392,189 @@ export type InvoiceLineItemInput = z.infer<typeof invoiceLineItemInputSchema>;
 export type GenerateInvoiceInput = z.infer<typeof generateInvoiceSchema>;
 export type InvoiceQueryInput = z.infer<typeof invoiceQuerySchema>;
 export type VoidInvoiceInput = z.infer<typeof voidInvoiceSchema>;
+
+// ==============================================================================
+// Collection Areas & Routes Schemas (Phase 6)
+// ==============================================================================
+
+export const createCollectionAreaSchema = z.object({
+  name: z.string().trim().min(2, 'Name must be at least 2 characters').max(128),
+  code: z.string().trim().max(32).optional().nullable(),
+  description: z.string().max(500).optional().nullable(),
+  barangay: z.string().trim().max(64).optional().nullable(),
+  city: z.string().trim().max(64).default('Malaybalay'),
+  assignedCollectorId: z.string().uuid('Invalid collector ID').optional().nullable(),
+});
+
+export const updateCollectionAreaSchema = z.object({
+  name: z.string().trim().min(2).max(128).optional(),
+  code: z.string().trim().max(32).optional().nullable(),
+  description: z.string().max(500).optional().nullable(),
+  barangay: z.string().trim().max(64).optional().nullable(),
+  city: z.string().trim().max(64).optional(),
+  assignedCollectorId: z.string().uuid('Invalid collector ID').optional().nullable(),
+  isActive: z.boolean().optional(),
+});
+
+export const assignCollectorSchema = z.object({
+  collectorId: z.string().uuid('Invalid collector ID'),
+});
+
+export const collectionAreaQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+  search: z.string().trim().optional(),
+  barangay: z.string().trim().optional(),
+  collectorId: z.string().uuid().optional(),
+  isActive: z.coerce.boolean().optional(),
+});
+
+export const createCollectionRouteSchema = z.object({
+  collectionAreaId: z.string().uuid('Invalid collection area ID'),
+  routeCode: z.string().trim().min(2, 'Route code must be at least 2 characters').max(32),
+  name: z.string().trim().min(2, 'Route name must be at least 2 characters').max(128),
+  description: z.string().max(500).optional().nullable(),
+  assignedCollectorId: z.string().uuid('Invalid collector ID').optional().nullable(),
+});
+
+export const updateCollectionRouteSchema = z.object({
+  collectionAreaId: z.string().uuid('Invalid collection area ID').optional(),
+  routeCode: z.string().trim().min(2).max(32).optional(),
+  name: z.string().trim().min(2).max(128).optional(),
+  description: z.string().max(500).optional().nullable(),
+  assignedCollectorId: z.string().uuid('Invalid collector ID').optional().nullable(),
+  isActive: z.boolean().optional(),
+});
+
+export const collectionRouteQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+  collectionAreaId: z.string().uuid().optional(),
+  search: z.string().trim().optional(),
+  collectorId: z.string().uuid().optional(),
+  isActive: z.coerce.boolean().optional(),
+});
+
+export const routeSheetQuerySchema = z.object({
+  overdueOnly: z.preprocess((val) => {
+    if (typeof val === 'string') {
+      if (val.toLowerCase() === 'true') return true;
+      if (val.toLowerCase() === 'false') return false;
+    }
+    return val;
+  }, z.boolean().optional().default(false)),
+});
+
+export type CreateCollectionAreaInput = z.infer<typeof createCollectionAreaSchema>;
+export type UpdateCollectionAreaInput = z.infer<typeof updateCollectionAreaSchema>;
+export type AssignCollectorInput = z.infer<typeof assignCollectorSchema>;
+export type CollectionAreaQueryInput = z.infer<typeof collectionAreaQuerySchema>;
+export type CreateCollectionRouteInput = z.infer<typeof createCollectionRouteSchema>;
+export type UpdateCollectionRouteInput = z.infer<typeof updateCollectionRouteSchema>;
+export type CollectionRouteQueryInput = z.infer<typeof collectionRouteQuerySchema>;
+export type RouteSheetQueryInput = z.infer<typeof routeSheetQuerySchema>;
+export type AssignServiceAccountCollectorInput = z.infer<typeof assignServiceAccountCollectorSchema>;
+
+// ==============================================================================
+// Service Orders Engine Schemas (Phase 6)
+// ==============================================================================
+
+export const serviceOrderTypeEnum = z.enum([
+  'INSTALLATION',
+  'REPAIR',
+  'DISCONNECTION',
+  'RECONNECTION',
+  'RELOCATION',
+  'TRANSFER',
+]);
+
+export const serviceOrderStatusEnum = z.enum([
+  'PENDING',
+  'ASSIGNED',
+  'IN_PROGRESS',
+  'COMPLETED',
+  'CANCELLED',
+]);
+
+export const serviceOrderPriorityEnum = z.enum([
+  'LOW',
+  'NORMAL',
+  'HIGH',
+  'URGENT',
+]);
+
+export const materialUsedSchema = z.object({
+  item: z.string().trim().min(1, 'Item name is required'),
+  quantity: z.number().positive('Quantity must be positive'),
+  unit: z.string().optional(),
+  costCentavos: z.number().int().nonnegative().optional(),
+});
+
+export const createServiceOrderSchema = z.object({
+  serviceAccountId: z.string().uuid('Invalid service account ID'),
+  orderType: serviceOrderTypeEnum,
+  description: z.string().trim().min(3, 'Description must be at least 3 characters').max(1000),
+  priority: serviceOrderPriorityEnum.default('NORMAL'),
+  assignedTechnicianId: z.string().uuid('Invalid technician ID').optional().nullable(),
+  scheduledDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Scheduled date must be YYYY-MM-DD').optional().nullable(),
+  targetAddressId: z.string().uuid('Invalid target address ID').optional().nullable(),
+  feeCentavos: z.number().int().nonnegative('Fee cannot be negative').default(0),
+  disconnectionType: z.enum(['TEMPORARY', 'PERMANENT']).optional().nullable(),
+});
+
+export const updateServiceOrderSchema = z.object({
+  description: z.string().trim().min(3).max(1000).optional(),
+  priority: serviceOrderPriorityEnum.optional(),
+  assignedTechnicianId: z.string().uuid('Invalid technician ID').optional().nullable(),
+  scheduledDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Scheduled date must be YYYY-MM-DD').optional().nullable(),
+  status: z.enum(['PENDING', 'ASSIGNED', 'IN_PROGRESS']).optional(),
+  feeCentavos: z.number().int().nonnegative().optional(),
+  targetAddressId: z.string().uuid('Invalid target address ID').optional().nullable(),
+});
+
+export const assignTechnicianSchema = z.object({
+  technicianId: z.string().uuid('Invalid technician ID'),
+  scheduledDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Scheduled date must be YYYY-MM-DD').optional().nullable(),
+});
+
+export const completeServiceOrderSchema = z.object({
+  resolutionNotes: z.string().trim().min(3, 'Resolution notes are required').max(2000),
+  materialsUsed: z.array(materialUsedSchema).optional(),
+  disconnectionType: z.enum(['TEMPORARY', 'PERMANENT']).optional(),
+  targetAddressId: z.string().uuid('Invalid target address ID').optional().nullable(),
+  completedAt: z.string().optional(),
+});
+
+export const cancelServiceOrderSchema = z.object({
+  reason: z.string().trim().min(3, 'Cancellation reason is required').max(500),
+});
+
+export const changeServiceOrderStatusSchema = z.object({
+  status: z.enum(['PENDING', 'ASSIGNED', 'IN_PROGRESS']),
+  reason: z.string().trim().max(500).optional(),
+});
+
+export const serviceOrderQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+  serviceAccountId: z.string().uuid().optional(),
+  subscriberId: z.string().uuid().optional(),
+  assignedTechnicianId: z.string().uuid().optional(),
+  orderType: serviceOrderTypeEnum.optional(),
+  status: serviceOrderStatusEnum.optional(),
+  priority: serviceOrderPriorityEnum.optional(),
+  search: z.string().trim().optional(),
+  sortBy: z.enum(['createdAt', 'scheduledDate', 'orderNumber', 'priority', 'status']).default('createdAt'),
+  sortOrder: z.enum(['asc', 'desc']).default('desc'),
+});
+
+export type MaterialUsedInput = z.infer<typeof materialUsedSchema>;
+export type CreateServiceOrderInput = z.infer<typeof createServiceOrderSchema>;
+export type UpdateServiceOrderInput = z.infer<typeof updateServiceOrderSchema>;
+export type ChangeServiceOrderStatusInput = z.infer<typeof changeServiceOrderStatusSchema>;
+export type AssignTechnicianInput = z.infer<typeof assignTechnicianSchema>;
+export type CompleteServiceOrderInput = z.infer<typeof completeServiceOrderSchema>;
+export type CancelServiceOrderInput = z.infer<typeof cancelServiceOrderSchema>;
+export type ServiceOrderQueryInput = z.infer<typeof serviceOrderQuerySchema>;
+
 

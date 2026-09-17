@@ -137,6 +137,8 @@ export const serviceAccounts = pgTable('service_accounts', {
   servicePlanId: uuid('service_plan_id').notNull().references(() => servicePlans.id, { onDelete: 'restrict' }),
   installationAddressId: uuid('installation_address_id').references(() => subscriberAddresses.id),
   collectorId: uuid('collector_id').references(() => users.id),
+  collectionAreaId: uuid('collection_area_id').references(() => collectionAreas.id),
+  collectionRouteId: uuid('collection_route_id').references(() => collectionRoutes.id),
   billingDayOfMonth: integer('billing_day_of_month').notNull().default(1),
   currentRateCentavos: bigint('current_rate_centavos', { mode: 'number' }).notNull(),
   status: varchar('status', { length: 32 }).notNull().default('ACTIVE'), // PENDING_INSTALL, ACTIVE, SUSPENDED, TERMINATED
@@ -272,7 +274,26 @@ export const subscriberLedger = pgTable('subscriber_ledger', {
 export const collectionAreas = pgTable('collection_areas', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: varchar('name', { length: 128 }).notNull().unique(),
+  code: varchar('code', { length: 32 }).unique(),
   description: text('description'),
+  barangay: varchar('barangay', { length: 64 }),
+  city: varchar('city', { length: 64 }).notNull().default('Malaybalay'),
+  assignedCollectorId: uuid('assigned_collector_id').references(() => users.id),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const collectionRoutes = pgTable('collection_routes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  collectionAreaId: uuid('collection_area_id').notNull().references(() => collectionAreas.id, { onDelete: 'cascade' }),
+  routeCode: varchar('route_code', { length: 32 }).notNull().unique(),
+  name: varchar('name', { length: 128 }).notNull(),
+  description: text('description'),
+  assignedCollectorId: uuid('assigned_collector_id').references(() => users.id),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const collectionBatches = pgTable('collection_batches', {
@@ -289,7 +310,34 @@ export const collectionBatches = pgTable('collection_batches', {
 });
 
 // ==============================================================================
-// 8. Audit Logs
+// 8. Service Orders (Phase 6)
+// ==============================================================================
+
+export const serviceOrders = pgTable('service_orders', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orderNumber: varchar('order_number', { length: 32 }).notNull().unique(),
+  orderType: varchar('order_type', { length: 32 }).notNull(), // INSTALLATION, REPAIR, DISCONNECTION, RECONNECTION, RELOCATION, TRANSFER
+  status: varchar('status', { length: 32 }).notNull().default('PENDING'), // PENDING, ASSIGNED, IN_PROGRESS, COMPLETED, CANCELLED
+  serviceAccountId: uuid('service_account_id').notNull().references(() => serviceAccounts.id, { onDelete: 'restrict' }),
+  subscriberId: uuid('subscriber_id').notNull().references(() => subscribers.id, { onDelete: 'restrict' }),
+  assignedTechnicianId: uuid('assigned_technician_id').references(() => users.id),
+  priority: varchar('priority', { length: 16 }).notNull().default('NORMAL'), // LOW, NORMAL, HIGH, URGENT
+  scheduledDate: date('scheduled_date'),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  cancellationReason: text('cancellation_reason'),
+  targetAddressId: uuid('target_address_id').references(() => subscriberAddresses.id),
+  description: text('description'),
+  resolutionNotes: text('resolution_notes'),
+  materialsUsed: jsonb('materials_used'),
+  feeCentavos: bigint('fee_centavos', { mode: 'number' }).notNull().default(0),
+  disconnectionType: varchar('disconnection_type', { length: 32 }), // TEMPORARY, PERMANENT
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ==============================================================================
+// 9. Audit Logs
 // ==============================================================================
 
 export const auditLogs = pgTable('audit_logs', {

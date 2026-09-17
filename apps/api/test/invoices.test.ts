@@ -18,6 +18,7 @@ import {
   gcashTransactions,
   users,
   auditLogs,
+  serviceOrders,
 } from '../src/db/schema.js';
 import { eq, and } from 'drizzle-orm';
 
@@ -36,6 +37,7 @@ describe('Billing & Invoicing Engine (Phase 4)', () => {
     await seedDatabase();
 
     // Clean up test invoices, allocations, items, and ledger from previous test runs
+    await db.delete(serviceOrders);
     await db.delete(paymentReversals);
     await db.delete(receipts);
     await db.delete(paymentAllocations);
@@ -123,7 +125,9 @@ describe('Billing & Invoicing Engine (Phase 4)', () => {
   });
 
   afterAll(async () => {
-    await server.close();
+    if (server) {
+      await server.close();
+    }
     await pool.end();
   });
 

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { buildServer } from '../src/server.js';
 import { FastifyInstance } from 'fastify';
 import { pool, db } from '../src/db/client.js';
-import { seedDatabase } from '../src/db/seed.js';
+import { seedDatabase, BASE_PERMISSIONS } from '../src/db/seed.js';
 import { users, auditLogs } from '../src/db/schema.js';
 import { hashPassword } from '../src/utils/password.js';
 import { eq } from 'drizzle-orm';
@@ -43,8 +43,8 @@ describe('Authentication & Session Engine (Phase 2)', () => {
       expect(data.user).toBeDefined();
       expect(data.user.username).toBe('admin');
       expect(data.user.roles).toContain('ROLE_SUPER_ADMIN');
-      // Super Admin inherits all 41 granular permissions
-      expect(data.user.permissions.length).toBe(41);
+      // Super Admin inherits all granular permissions
+      expect(data.user.permissions.length).toBe(BASE_PERMISSIONS.length);
       expect(data.user.permissions).toContain('user.manage');
       expect(data.user.permissions).toContain('subscriber.create');
       expect(data.user.permissions).toContain('payment.create');
@@ -313,7 +313,7 @@ describe('Authentication & Session Engine (Phase 2)', () => {
       expect(data.user).toBeDefined();
       expect(data.user.username).toBe('admin');
       expect(data.user.roles).toContain('ROLE_SUPER_ADMIN');
-      expect(data.user.permissions.length).toBe(41);
+      expect(data.user.permissions.length).toBe(BASE_PERMISSIONS.length);
     });
 
     it('rejects request with HTTP 401 when Authorization header is missing', async () => {

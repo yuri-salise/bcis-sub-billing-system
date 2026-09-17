@@ -6,12 +6,15 @@ import {
   servicePlans,
   subscriberAddresses,
   users,
+  collectionAreas,
+  collectionRoutes,
 } from '../../db/schema.js';
 import { writeAuditLog } from '../../utils/audit.js';
 import {
   CreateServiceAccountInput,
   UpdateServiceAccountInput,
   ServiceAccountQueryInput,
+  AssignServiceAccountCollectorInput,
 } from '@bcis/validation';
 
 /**
@@ -250,6 +253,42 @@ export async function createServiceAccount(
   // 4. Rate in integer centavos defaults to plan rate if not explicitly specified
   const currentRateCentavos = input.currentRateCentavos ?? plan.monthlyRecurringCentavos;
 
+  // Validate collection area if provided
+  if (input.collectionAreaId) {
+    const [area] = await db
+      .select()
+      .from(collectionAreas)
+      .where(eq(collectionAreas.id, input.collectionAreaId))
+      .limit(1);
+    if (!area) {
+      const err = new Error(`Collection area with ID '${input.collectionAreaId}' was not found`) as Error & {
+        statusCode: number;
+        code: string;
+      };
+      err.statusCode = 404;
+      err.code = 'AREA_NOT_FOUND';
+      throw err;
+    }
+  }
+
+  // Validate collection route if provided
+  if (input.collectionRouteId) {
+    const [route] = await db
+      .select()
+      .from(collectionRoutes)
+      .where(eq(collectionRoutes.id, input.collectionRouteId))
+      .limit(1);
+    if (!route) {
+      const err = new Error(`Collection route with ID '${input.collectionRouteId}' was not found`) as Error & {
+        statusCode: number;
+        code: string;
+      };
+      err.statusCode = 404;
+      err.code = 'ROUTE_NOT_FOUND';
+      throw err;
+    }
+  }
+
   // 5. Generate unique service account number
   const serviceAccountNumber = await generateServiceAccountNumber();
 
@@ -268,6 +307,8 @@ export async function createServiceAccount(
       servicePlanId: plan.id,
       installationAddressId: addressId,
       collectorId: input.collectorId ?? null,
+      collectionAreaId: input.collectionAreaId ?? null,
+      collectionRouteId: input.collectionRouteId ?? null,
       billingDayOfMonth: input.billingDayOfMonth ?? 1,
       currentRateCentavos,
       status,
@@ -338,6 +379,46 @@ export async function updateServiceAccount(
     updateValues.collectorId = input.collectorId;
   }
 
+  if (input.collectionAreaId !== undefined) {
+    if (input.collectionAreaId !== null) {
+      const [area] = await db
+        .select()
+        .from(collectionAreas)
+        .where(eq(collectionAreas.id, input.collectionAreaId))
+        .limit(1);
+      if (!area) {
+        const err = new Error(`Collection area with ID '${input.collectionAreaId}' was not found`) as Error & {
+          statusCode: number;
+          code: string;
+        };
+        err.statusCode = 404;
+        err.code = 'AREA_NOT_FOUND';
+        throw err;
+      }
+    }
+    updateValues.collectionAreaId = input.collectionAreaId;
+  }
+
+  if (input.collectionRouteId !== undefined) {
+    if (input.collectionRouteId !== null) {
+      const [route] = await db
+        .select()
+        .from(collectionRoutes)
+        .where(eq(collectionRoutes.id, input.collectionRouteId))
+        .limit(1);
+      if (!route) {
+        const err = new Error(`Collection route with ID '${input.collectionRouteId}' was not found`) as Error & {
+          statusCode: number;
+          code: string;
+        };
+        err.statusCode = 404;
+        err.code = 'ROUTE_NOT_FOUND';
+        throw err;
+      }
+    }
+    updateValues.collectionRouteId = input.collectionRouteId;
+  }
+
   if (input.billingDayOfMonth !== undefined) {
     updateValues.billingDayOfMonth = input.billingDayOfMonth;
   }
@@ -369,6 +450,109 @@ export async function updateServiceAccount(
     entityId: current.id,
     oldValues: current,
     newValues: updated,
+    ipAddress: ip,
+  });
+
+  return updated;
+}
+
+/**
+ * Assigns or reassigns collector, collection area, or collection route to a service account.
+ * Implements PATCH /api/v1/service-accounts/:id/collector
+ */
+export async function assignCollectorToServiceAccount(
+  id: string,
+  input: AssignServiceAccountCollectorInput,
+  actor: { id?: string; name: string },
+  ip?: string
+) {
+  const current = await getServiceAccountById(id);
+  if (!current) return null;
+
+  const updateValues: Partial<typeof serviceAccounts.$inferInsert> = {
+    updatedAt: new Date(),
+  };
+
+  if (input.collectorId !== undefined) {
+    if (input.collectorId !== null) {
+      const [collector] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, input.collectorId))
+        .limit(1);
+      if (!collector) {
+        const err = new Error(`Collector user '${input.collectorId}' was not found`) as Error & {
+          statusCode: number;
+          code: string;
+        };
+        err.statusCode = 404;
+        err.code = 'COLLECTOR_NOT_FOUND';
+        throw err;
+      }
+    }
+    updateValues.collectorId = input.collectorId;
+  }
+
+  if (input.collectionAreaId !== undefined) {
+    if (input.collectionAreaId !== null) {
+      const [area] = await db
+        .select()
+        .from(collectionAreas)
+        .where(eq(collectionAreas.id, input.collectionAreaId))
+        .limit(1);
+      if (!area) {
+        const err = new Error(`Collection area '${input.collectionAreaId}' was not found`) as Error & {
+          statusCode: number;
+          code: string;
+        };
+        err.statusCode = 404;
+        err.code = 'AREA_NOT_FOUND';
+        throw err;
+      }
+    }
+    updateValues.collectionAreaId = input.collectionAreaId;
+  }
+
+  if (input.collectionRouteId !== undefined) {
+    if (input.collectionRouteId !== null) {
+      const [route] = await db
+        .select()
+        .from(collectionRoutes)
+        .where(eq(collectionRoutes.id, input.collectionRouteId))
+        .limit(1);
+      if (!route) {
+        const err = new Error(`Collection route '${input.collectionRouteId}' was not found`) as Error & {
+          statusCode: number;
+          code: string;
+        };
+        err.statusCode = 404;
+        err.code = 'ROUTE_NOT_FOUND';
+        throw err;
+      }
+    }
+    updateValues.collectionRouteId = input.collectionRouteId;
+  }
+
+  await db.update(serviceAccounts).set(updateValues).where(eq(serviceAccounts.id, current.id));
+
+  const updated = await getServiceAccountById(current.id);
+
+  await writeAuditLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    action: 'SERVICE_ACCOUNT_COLLECTOR_ASSIGNED',
+    entityType: 'SERVICE_ACCOUNT',
+    entityId: current.id,
+    oldValues: {
+      collectorId: current.collectorId,
+      collectionAreaId: current.collectionAreaId,
+      collectionRouteId: current.collectionRouteId,
+    },
+    newValues: {
+      collectorId: updateValues.collectorId !== undefined ? updateValues.collectorId : current.collectorId,
+      collectionAreaId: updateValues.collectionAreaId !== undefined ? updateValues.collectionAreaId : current.collectionAreaId,
+      collectionRouteId: updateValues.collectionRouteId !== undefined ? updateValues.collectionRouteId : current.collectionRouteId,
+    },
     ipAddress: ip,
   });
 

@@ -1,5 +1,5 @@
 import { pool, db } from './client.js';
-import { users, roles, permissions, rolePermissions, userRoles, serviceTypes } from './schema.js';
+import { users, roles, permissions, rolePermissions, userRoles, serviceTypes, collectionAreas, collectionRoutes } from './schema.js';
 import { hashPassword } from '../utils/password.js';
 import { PermissionCode, UserRole } from '@bcis/shared-types';
 import { eq, notInArray } from 'drizzle-orm';
@@ -55,6 +55,7 @@ export const BASE_PERMISSIONS: PermissionSeedData[] = [
   { code: 'collection.enter_field', module: 'collection', description: 'Enter collected field receipts into a batch', riskLevel: 'Medium' },
   { code: 'collection.reconcile', module: 'collection', description: 'Verify cash count, calculate differences, record shortages', riskLevel: 'High' },
   { code: 'collection.manage_staff', module: 'collection', description: 'Manage collectors, routes, and commission settings', riskLevel: 'Medium' },
+  { code: 'collections.manage', module: 'collection', description: 'Full management of collection areas, routes, and collector assignments', riskLevel: 'High' },
 
   // 9. Receivable Module
   { code: 'receivable.view', module: 'receivable', description: 'View accounts receivable lists and delinquency summary', riskLevel: 'Low' },
@@ -64,6 +65,12 @@ export const BASE_PERMISSIONS: PermissionSeedData[] = [
   { code: 'service_control.view', module: 'service_control', description: 'View suspension candidates and disconnection orders', riskLevel: 'Low' },
   { code: 'service_control.suspend', module: 'service_control', description: 'Approve and execute service suspension', riskLevel: 'High' },
   { code: 'service_control.reconnect', module: 'service_control', description: 'Approve and execute service reconnection', riskLevel: 'High' },
+
+  // 11. Service Orders Module (Phase 6)
+  { code: 'service_orders.create', module: 'service_orders', description: 'Create and issue service orders', riskLevel: 'Medium' },
+  { code: 'service_orders.read', module: 'service_orders', description: 'View service orders and technical history', riskLevel: 'Low' },
+  { code: 'service_orders.update', module: 'service_orders', description: 'Assign technician, update schedule or notes', riskLevel: 'Medium' },
+  { code: 'service_orders.complete', module: 'service_orders', description: 'Complete service order and sync account status', riskLevel: 'High' },
 
   // 11. Report Module
   { code: 'report.operational', module: 'report', description: 'Export operational reports (Subscriber list, Route sheets)', riskLevel: 'Medium' },
@@ -135,6 +142,8 @@ export const ROLE_PERMISSION_MAPPING: Record<UserRole, PermissionCode[]> = {
     'receipt.view', 'receipt.reprint',
     'gcash.view', 'gcash.submit', 'gcash.verify', 'gcash.reject',
     'collection.view', 'collection.batch_create', 'collection.enter_field', 'collection.reconcile', 'collection.manage_staff',
+    'collections.manage',
+    'service_orders.create', 'service_orders.read', 'service_orders.update', 'service_orders.complete',
     'receivable.view', 'receivable.view_aging',
     'service_control.view', 'service_control.suspend', 'service_control.reconnect',
     'report.operational', 'report.financial',
@@ -146,12 +155,15 @@ export const ROLE_PERMISSION_MAPPING: Record<UserRole, PermissionCode[]> = {
     'receipt.view', 'receipt.reprint',
     'gcash.view', 'gcash.submit', 'gcash.verify', 'gcash.reject',
     'collection.view', 'receivable.view', 'service_control.view',
+    'service_orders.read',
   ],
   [UserRole.COLLECTION_SUPERVISOR]: [
     'subscriber.view', 'service_account.view', 'service_plan.view',
     'billing.view', 'payment.view', 'receipt.view',
     'gcash.view', 'gcash.submit',
     'collection.view', 'collection.batch_create', 'collection.enter_field', 'collection.reconcile', 'collection.manage_staff',
+    'collections.manage',
+    'service_orders.read', 'service_orders.create', 'service_orders.update',
     'receivable.view', 'receivable.view_aging',
     'service_control.view', 'service_control.suspend', 'service_control.reconnect',
     'report.operational',
@@ -163,6 +175,7 @@ export const ROLE_PERMISSION_MAPPING: Record<UserRole, PermissionCode[]> = {
     'receipt.view', 'receipt.reprint',
     'gcash.view',
     'collection.view', 'collection.reconcile',
+    'service_orders.read',
     'receivable.view', 'receivable.view_aging',
     'service_control.view',
     'report.operational', 'report.financial',
@@ -171,11 +184,13 @@ export const ROLE_PERMISSION_MAPPING: Record<UserRole, PermissionCode[]> = {
   [UserRole.TECHNICIAN]: [
     'subscriber.view', 'service_account.view', 'service_plan.view',
     'service_control.view', 'service_control.suspend', 'service_control.reconnect',
+    'service_orders.read', 'service_orders.update', 'service_orders.complete',
   ],
   [UserRole.VIEWER]: [
     'subscriber.view', 'service_account.view', 'service_plan.view',
     'billing.view', 'payment.view', 'receipt.view',
     'gcash.view', 'collection.view', 'receivable.view', 'service_control.view',
+    'service_orders.read',
   ],
 };
 
@@ -184,6 +199,55 @@ export const ROLE_PERMISSION_MAPPING: Record<UserRole, PermissionCode[]> = {
  */
 export async function seedDatabase(): Promise<void> {
   console.log('[Seed] Starting database seeding...');
+
+  // Ensure tables and columns for Phase 6 exist idempotently
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS collection_routes (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      collection_area_id UUID NOT NULL REFERENCES collection_areas(id) ON DELETE CASCADE,
+      route_code VARCHAR(32) NOT NULL UNIQUE,
+      name VARCHAR(128) NOT NULL,
+      description TEXT,
+      assigned_collector_id UUID REFERENCES users(id),
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS service_orders (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      order_number VARCHAR(32) NOT NULL UNIQUE,
+      order_type VARCHAR(32) NOT NULL,
+      status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+      service_account_id UUID NOT NULL REFERENCES service_accounts(id) ON DELETE RESTRICT,
+      subscriber_id UUID NOT NULL REFERENCES subscribers(id) ON DELETE RESTRICT,
+      assigned_technician_id UUID REFERENCES users(id),
+      priority VARCHAR(16) NOT NULL DEFAULT 'NORMAL',
+      scheduled_date DATE,
+      completed_at TIMESTAMPTZ,
+      cancelled_at TIMESTAMPTZ,
+      cancellation_reason TEXT,
+      target_address_id UUID REFERENCES subscriber_addresses(id),
+      description TEXT,
+      resolution_notes TEXT,
+      materials_used JSONB,
+      fee_centavos BIGINT NOT NULL DEFAULT 0,
+      disconnection_type VARCHAR(32),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    ALTER TABLE collection_areas ADD COLUMN IF NOT EXISTS code VARCHAR(32) UNIQUE;
+    ALTER TABLE collection_areas ADD COLUMN IF NOT EXISTS barangay VARCHAR(64);
+    ALTER TABLE collection_areas ADD COLUMN IF NOT EXISTS city VARCHAR(64) NOT NULL DEFAULT 'Malaybalay';
+    ALTER TABLE collection_areas ADD COLUMN IF NOT EXISTS assigned_collector_id UUID REFERENCES users(id);
+    ALTER TABLE collection_areas ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true;
+    ALTER TABLE collection_areas ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+    ALTER TABLE collection_areas ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+    ALTER TABLE service_accounts ADD COLUMN IF NOT EXISTS collection_area_id UUID REFERENCES collection_areas(id);
+    ALTER TABLE service_accounts ADD COLUMN IF NOT EXISTS collection_route_id UUID REFERENCES collection_routes(id);
+  `);
 
   // 0. Seed Service Types
   const defaultServiceTypes = [
@@ -355,6 +419,194 @@ export async function seedDatabase(): Promise<void> {
         roleId: cashierRoleId,
       })
       .onConflictDoNothing();
+  }
+
+  // 7. Seed Demo Technician User
+  const techUsername = 'technician';
+  const techPassword = 'Tech123!';
+  const techRoleId = roleMap.get(UserRole.TECHNICIAN);
+
+  let techUserId: string | null = null;
+  if (techRoleId) {
+    const existingTech = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, techUsername))
+      .limit(1);
+
+    if (existingTech.length === 0) {
+      console.log(`[Seed] Creating demo Technician: ${techUsername}`);
+      const passwordHash = await hashPassword(techPassword);
+      const [newTech] = await db
+        .insert(users)
+        .values({
+          username: techUsername,
+          passwordHash,
+          fullName: 'Juan Dela Cruz (Technician)',
+          email: 'tech@bcis.local',
+          isActive: true,
+          failedLoginAttempts: 0,
+        })
+        .returning({ id: users.id });
+      techUserId = newTech.id;
+    } else {
+      techUserId = existingTech[0].id;
+      await db
+        .update(users)
+        .set({
+          isActive: true,
+          failedLoginAttempts: 0,
+          lockedUntil: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, techUserId));
+    }
+
+    await db
+      .insert(userRoles)
+      .values({
+        userId: techUserId,
+        roleId: techRoleId,
+      })
+      .onConflictDoNothing();
+  }
+
+  // 8. Seed Demo Collection Supervisor
+  const supvUsername = 'collector_supv';
+  const supvPassword = 'Supervisor123!';
+  const supvRoleId = roleMap.get(UserRole.COLLECTION_SUPERVISOR);
+
+  let supvUserId: string | null = null;
+  if (supvRoleId) {
+    const existingSupv = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, supvUsername))
+      .limit(1);
+
+    if (existingSupv.length === 0) {
+      console.log(`[Seed] Creating demo Collection Supervisor: ${supvUsername}`);
+      const passwordHash = await hashPassword(supvPassword);
+      const [newSupv] = await db
+        .insert(users)
+        .values({
+          username: supvUsername,
+          passwordHash,
+          fullName: 'Carlos Lim (Collection Supervisor)',
+          email: 'supervisor@bcis.local',
+          isActive: true,
+          failedLoginAttempts: 0,
+        })
+        .returning({ id: users.id });
+      supvUserId = newSupv.id;
+    } else {
+      supvUserId = existingSupv[0].id;
+      await db
+        .update(users)
+        .set({
+          isActive: true,
+          failedLoginAttempts: 0,
+          lockedUntil: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, supvUserId));
+    }
+
+    await db
+      .insert(userRoles)
+      .values({
+        userId: supvUserId,
+        roleId: supvRoleId,
+      })
+      .onConflictDoNothing();
+  }
+
+  // 9. Seed Demo Field Collector
+  const collectorUsername = 'collector1';
+  const collectorPassword = 'Collector123!';
+  let collectorUserId: string | null = null;
+
+  const existingCollector = await db
+    .select()
+    .from(users)
+    .where(eq(users.username, collectorUsername))
+    .limit(1);
+
+  if (existingCollector.length === 0) {
+    console.log(`[Seed] Creating demo Collector: ${collectorUsername}`);
+    const passwordHash = await hashPassword(collectorPassword);
+    const [newCollector] = await db
+      .insert(users)
+      .values({
+        username: collectorUsername,
+        passwordHash,
+        fullName: 'Pedro Penduko (Field Collector)',
+        email: 'collector1@bcis.local',
+        isActive: true,
+        failedLoginAttempts: 0,
+      })
+      .returning({ id: users.id });
+    collectorUserId = newCollector.id;
+  } else {
+    collectorUserId = existingCollector[0].id;
+    await db
+      .update(users)
+      .set({
+        isActive: true,
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, collectorUserId));
+  }
+
+  if (cashierRoleId && collectorUserId) {
+    await db
+      .insert(userRoles)
+      .values({
+        userId: collectorUserId,
+        roleId: cashierRoleId,
+      })
+      .onConflictDoNothing();
+  }
+
+  // 10. Seed Default Collection Areas & Routes
+  const defaultAreas = [
+    { name: 'Casisang', code: 'AREA-CAS', barangay: 'Casisang', city: 'Malaybalay', description: 'Barangay Casisang collection sector', assignedCollectorId: collectorUserId },
+    { name: 'Sumpong', code: 'AREA-SMP', barangay: 'Sumpong', city: 'Malaybalay', description: 'Barangay Sumpong collection sector', assignedCollectorId: collectorUserId },
+    { name: 'Poblacion', code: 'AREA-POB', barangay: 'Poblacion', city: 'Malaybalay', description: 'Poblacion downtown and commercial area', assignedCollectorId: collectorUserId },
+    { name: 'Malaybalay Central', code: 'AREA-MAL', barangay: 'Poblacion', city: 'Malaybalay', description: 'Malaybalay city center', assignedCollectorId: collectorUserId },
+  ];
+
+  for (const area of defaultAreas) {
+    const existingArea = await db.select().from(collectionAreas).where(eq(collectionAreas.name, area.name)).limit(1);
+    let areaId: string;
+    if (existingArea.length === 0) {
+      const [inserted] = await db.insert(collectionAreas).values(area).returning({ id: collectionAreas.id });
+      areaId = inserted.id;
+    } else {
+      areaId = existingArea[0].id;
+      await db.update(collectionAreas).set({
+        code: area.code,
+        barangay: area.barangay,
+        city: area.city,
+        assignedCollectorId: area.assignedCollectorId,
+      }).where(eq(collectionAreas.id, areaId));
+    }
+
+    // Default route for Casisang
+    if (area.code === 'AREA-CAS') {
+      const [existingRoute] = await db.select().from(collectionRoutes).where(eq(collectionRoutes.routeCode, 'CAS-R01')).limit(1);
+      if (!existingRoute) {
+        await db.insert(collectionRoutes).values({
+          collectionAreaId: areaId,
+          routeCode: 'CAS-R01',
+          name: 'Route A - Upper Casisang',
+          description: 'Purok 1 to Purok 4',
+          assignedCollectorId: collectorUserId,
+        }).onConflictDoNothing();
+      }
+    }
   }
 
   console.log('[Seed] Seeding completed successfully!');

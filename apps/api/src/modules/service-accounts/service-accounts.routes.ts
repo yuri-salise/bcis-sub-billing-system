@@ -5,6 +5,7 @@ import {
   updateServiceAccountSchema,
   changeServiceAccountStatusSchema,
   serviceAccountQuerySchema,
+  assignServiceAccountCollectorSchema,
 } from '@bcis/validation';
 import {
   listServiceAccounts,
@@ -12,6 +13,7 @@ import {
   createServiceAccount,
   updateServiceAccount,
   changeServiceAccountStatus,
+  assignCollectorToServiceAccount,
 } from './service-accounts.service.js';
 import { extractActor } from '../../utils/audit.js';
 
@@ -202,6 +204,70 @@ export const serviceAccountRoutes: FastifyPluginAsync = async (fastify: FastifyI
         data: updated,
         message: `Service account status transitioned to ${parseResult.data.status}`,
       });
+    }
+  );
+
+  /**
+   * PATCH /api/v1/service-accounts/:id/collector
+   * Assigns or reassigns collection route, collection area, or collector to a service account.
+   * Guarded by service_accounts.write or collections.manage permission.
+   */
+  fastify.patch<{ Params: { id: string } }>(
+    '/:id/collector',
+    { preHandler: [fastify.authenticate, requirePermission(['service_accounts.write', 'service_account.update', 'collections.manage'])] },
+    async (request, reply) => {
+      const { id } = request.params;
+      const parseResult = assignServiceAccountCollectorSchema.safeParse(request.body);
+
+      if (!parseResult.success) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          code: 'INVALID_INPUT',
+          message: 'Validation failed',
+          details: parseResult.error.errors.map((e: { path: (string | number)[]; message: string }) => ({
+            field: e.path.join('.'),
+            issue: e.message,
+          })),
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const actor = extractActor(request);
+      try {
+        const updated = await assignCollectorToServiceAccount(
+          id,
+          parseResult.data,
+          actor,
+          request.ip
+        );
+
+        if (!updated) {
+          return reply.status(404).send({
+            statusCode: 404,
+            error: 'Not Found',
+            code: 'SERVICE_ACCOUNT_NOT_FOUND',
+            message: `Service account with identifier '${id}' was not found`,
+            timestamp: new Date().toISOString(),
+          });
+        }
+
+        return reply.status(200).send({
+          success: true,
+          message: 'Collector and collection route assigned successfully',
+          data: updated,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (err: any) {
+        const statusCode = err.statusCode || 500;
+        return reply.status(statusCode).send({
+          statusCode,
+          error: err.name || 'Error',
+          code: err.code || 'ASSIGN_COLLECTOR_ERROR',
+          message: err.message || 'Failed to assign collector/route to service account',
+          timestamp: new Date().toISOString(),
+        });
+      }
     }
   );
 };
