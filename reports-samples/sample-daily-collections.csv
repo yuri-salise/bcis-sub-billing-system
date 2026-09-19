@@ -1,0 +1,7 @@
+Cashier Username,Cashier Name,Receipts Issued,Cash (PHP),GCash (PHP),Check (PHP),Bank Transfer (PHP),Total Collected (PHP)
+cashier1,Grace Mendoza,14,21500.00,8500.00,5000.00,0.00,35000.00
+cashier2,Roberto Sanchez,11,16200.00,12800.00,0.00,4500.00,33500.00
+collector_c1,Danilo Ocampo (Field),8,12400.00,0.00,0.00,0.00,12400.00
+collector_s1,Eduardo Torres (Field),6,9300.00,0.00,0.00,0.00,9300.00
+admin,System Administrator,2,3000.00,1500.00,0.00,0.00,4500.00
+TOTAL,ALL CASHIERS,41,62400.00,22800.00,5000.00,4500.00,94700.00

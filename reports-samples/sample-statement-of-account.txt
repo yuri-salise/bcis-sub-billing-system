@@ -1,0 +1,61 @@
+==================================================================================================
+                      BUKIDNON CABLE AND INTERNET SERVICES (BCIS)
+                   Fortich Street, Poblacion, Malaybalay City, Bukidnon 8700
+                   VAT Reg. TIN: 123-456-789-00000 | Tel: (088) 813-1234
+                               STATEMENT OF ACCOUNT (SOA)
+==================================================================================================
+STATEMENT NO : SOA-202609-0042                         STATEMENT DATE : September 01, 2026
+ACCOUNT NO   : SUB-202609-0001                         PAYMENT DUE DATE: September 20, 2026
+
+SUBSCRIBER DETAILS:
+  Name       : Juan Dela Cruz
+  Address    : Purok 1, Barangay Casisang, Malaybalay City, Bukidnon
+  Contact No : 0917-123-4567
+  Email      : juan.delacruz@example.com
+--------------------------------------------------------------------------------------------------
+ACTIVE SUBSCRIBED SERVICES:
+  Service Account   Service Type    Plan Name              Monthly Recurring Fee   Status
+  ----------------  --------------  ---------------------  ---------------------  ---------
+  SA-202609-0001    INTERNET        Fiber Unlimited 50M             PHP 1,500.00   ACTIVE
+  SA-202609-0015    CABLE_TV        Standard Digital Cable            PHP 550.00   ACTIVE
+--------------------------------------------------------------------------------------------------
+ACCOUNT FINANCIAL SUMMARY:
+  Previous Balance (as of Aug 01, 2026) ........................ PHP    2,050.00
+  Less: Payments & Adjustments Received (OR-202608-0114) ...... -PHP    2,050.00
+  Balance Forwarded (Past Due) ................................. PHP        0.00
+  Current Monthly Charges (Billing Period: Sep 01 - Sep 30) .... PHP    2,050.00
+    - Fiber Unlimited 50M Plan (INV-202609-000001) ..... PHP 1,500.00
+    - Standard Digital Cable Plan (INV-202609-000002) .. PHP   550.00
+  Value Added Tax (12% Included) ............................... [PHP     219.64]
+  --------------------------------------------------------------------------------
+  TOTAL CURRENT CHARGES ........................................ PHP    2,050.00
+  Less: Applied Advance Credit ................................. PHP        0.00
+  --------------------------------------------------------------------------------
+  TOTAL AMOUNT DUE BY SEPTEMBER 20, 2026 ....................... PHP    2,050.00
+  Available Unapplied Advance Credit Balance ................... PHP        0.00
+--------------------------------------------------------------------------------------------------
+AGING OF RECEIVABLES BREAKDOWN:
+  Current Charges  : PHP 2,050.00       31-60 Days Past Due : PHP    0.00
+  1-30 Days Past Due: PHP    0.00       61-90 Days Past Due : PHP    0.00
+                                        90+ Days Past Due   : PHP    0.00
+--------------------------------------------------------------------------------------------------
+IMPORTANT REMINDERS & PAYMENT INSTRUCTIONS:
+  1. Please settle your bill on or before September 20, 2026 to avoid service interruption.
+  2. Disconnection notice is automatically generated for accounts with balances overdue 60+ days.
+  3. Official payment channels:
+     - BCIS Main Office Cashier: Fortich St., Poblacion, Malaybalay City (Mon-Sat 8:00AM - 5:00PM)
+     - Authorized Field Collectors: Always request a machine-generated Official Receipt (OR).
+     - GCash: Scan BCIS QR code or send to Merchant 0917-555-BCIS. Enter your Account Number
+       (SUB-202609-0001) as the reference.
+  4. For billing inquiries, technical support, or transfer requests, call (088) 813-1234
+     or visit support.bcis.ph.
+
+- - - - - - - - - - - - - - - - - - - - PLEASE DETACH HERE - - - - - - - - - - - - - - - - - - - -
+                                         PAYMENT SLIP
+ACCOUNT NUMBER : SUB-202609-0001                       TOTAL AMOUNT DUE: PHP 2,050.00
+SUBSCRIBER NAME: Juan Dela Cruz                         DUE DATE        : September 20, 2026
+STATEMENT NO   : SOA-202609-0042                       AMOUNT ENCLOSED : PHP ____________
+
+[  ] CASH    [  ] GCASH Reference: __________________   [  ] CHECK No: ___________________
+Tendered by  : ______________________________________   Date Paid     : ___________________
+==================================================================================================

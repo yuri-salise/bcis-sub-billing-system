@@ -568,7 +568,7 @@ describe('Reports, Dunning Management & Analytics Engine (Phase 7 - Reports)', (
     });
 
     it('provides breakdown by cashier and payment method', async () => {
-      const today = new Date().toISOString().split('T')[0];
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date());
       const res = await server.inject({
         method: 'GET',
         url: `/api/v1/reports/daily-collection?date=${today}`,

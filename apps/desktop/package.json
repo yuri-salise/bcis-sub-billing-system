@@ -1,12 +1,18 @@
 {
   "name": "@bcis/desktop",
   "version": "1.0.0",
+  "description": "BCIS Subscription Billing and Collection System - Windows Desktop Workstation",
+  "author": "Bukidnon Cable and Internet Services",
   "private": true,
   "main": "./dist/electron/main.js",
   "scripts": {
+    "dev": "electron .",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "dist": "electron-builder --win",
+    "dist:portable": "electron-builder --win portable",
+    "dist:nsis": "electron-builder --win nsis"
   },
   "dependencies": {
     "@bcis/domain": "workspace:*",
@@ -19,6 +25,47 @@
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
     "electron": "^35.0.0",
+    "electron-builder": "^25.1.8",
     "typescript": "^5.8.2"
+  },
+  "build": {
+    "appId": "ph.bcis.billing",
+    "productName": "BCIS Subscription Billing & Collection System",
+    "copyright": "Copyright © 2026 Bukidnon Cable and Internet Services",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "src/styles/**/*",
+      "index.html",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "BCIS Billing System"
+    },
+    "portable": {
+      "artifactName": "BCIS-Billing-System-Portable-${version}.exe"
+    }
   }
 }

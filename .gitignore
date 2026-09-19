@@ -6,6 +6,8 @@ node_modules/
 dist/
 build/
 out/
+release/*
+!release/README.md
 .turbo/
 
 # Environment files

@@ -1,0 +1,8 @@
+Subscriber Account,Subscriber Name,Service Account,Area,Collector,Plan,Service Type,Months Unpaid,Oldest Unpaid Invoice,Oldest Due Date,Days Overdue,Last Payment Date,Last Payment (PHP),Total Arrears (PHP),Dunning Status
+SUB-202609-0008,Andres Bonifacio Hardware,SA-202609-0008,Area 1 - Casisang,Danilo Ocampo,Fiber 50 Mbps,INTERNET,4,INV-202605-000042,2026-05-15,128,2026-04-12,1299.00,6495.00,DISCONNECTION_ORDERED
+SUB-202609-0006,Melchora Aquino,SA-202609-0006,Area 4 - Aglayan,Eduardo Torres,Fiber 100 Mbps + Cable,COMBO,3,INV-202606-000089,2026-06-15,97,2026-05-20,3599.00,3599.00,FINAL_NOTICE_ISSUED
+SUB-202609-0005,Gabriela Silang,SA-202609-0005,Area 3 - San Jose,Danilo Ocampo,Cable Basic 80 Ch,CABLE_TV,2,INV-202607-000104,2026-07-15,67,2026-06-18,1500.00,1500.00,FIRST_NOTICE_ISSUED
+SUB-202609-0007,Jose Rizal Tech Enterprise,SA-202609-0007,Area 2 - Poblacion,Roberto Sanchez,Fiber Dedicated 200 Mbps,INTERNET,3,INV-202607-000122,2026-07-15,67,2026-06-30,3500.00,10500.00,FINAL_NOTICE_ISSUED
+SUB-202609-0004,Antonio Luna,SA-202609-0004,Area 5 - Kalasungay,Eduardo Torres,Fiber 30 Mbps,INTERNET,1,INV-202608-000165,2026-08-15,36,2026-07-14,1299.00,1299.00,FIRST_NOTICE_ISSUED
+SUB-202609-0010,Apolinario Mabini Pharmacy,SA-202609-0010,Area 2 - Poblacion,Roberto Sanchez,Fiber 100 Mbps,INTERNET,2,INV-202608-000188,2026-08-15,36,2026-07-28,2499.00,4998.00,FIRST_NOTICE_ISSUED
+SUB-202609-0002,Maria Clara Santos,SA-202609-0002,Area 2 - Sumpong,Danilo Ocampo,Fiber 50 Mbps + Cable,COMBO,1,INV-202609-000210,2026-09-05,15,2026-08-10,1800.00,1800.00,UNNOTIFIED

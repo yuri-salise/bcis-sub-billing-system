@@ -1,0 +1,54 @@
+                BUKIDNON CABLE &                
+               INTERNET SERVICES                
+          Fortich St., Poblacion, Malaybalay    
+               Bukidnon, Philippines            
+          VAT Reg. TIN: 123-456-789-00000       
+             MIN: 260920-8700-001-POS           
+          Serial No: BCIS-POS-STATION-02        
+------------------------------------------------
+               OFFICIAL RECEIPT                 
+               OR-202609-0001                   
+------------------------------------------------
+Date & Time : 2026-09-20 09:42:15               
+Cashier     : Grace Mendoza (cashier1)          
+Terminal    : POS-STATION-02 (Counter 1)        
+------------------------------------------------
+SUBSCRIBER INFORMATION                          
+Account No  : SUB-202609-0001                   
+Name        : Juan Dela Cruz                    
+Address     : Purok 1, Casisang, Malaybalay     
+TIN / Bus.  : Consumer (Non-VAT)                
+------------------------------------------------
+DESCRIPTION                      AMOUNT (PHP)   
+------------------------------------------------
+INV-202609-000001                    1,500.00   
+  Fiber Unlimited 50M (Sep 2026)                
+INV-202609-000002                      550.00   
+  Standard Digital CATV                         
+------------------------------------------------
+TOTAL AMOUNT DUE                     2,050.00   
+PAYMENT METHOD                           CASH   
+CASH TENDERED                        2,500.00   
+CHANGE                                 450.00   
+------------------------------------------------
+TAX & VAT INVOICE BREAKDOWN (12% VAT INCLUSIVE) 
+------------------------------------------------
+VATable Sales (12%)                  1,830.36   
+12% Value Added Tax                    219.64   
+VAT-Exempt Sales                         0.00   
+Zero-Rated Sales                         0.00   
+------------------------------------------------
+TOTAL SALES AMOUNT (PHP)             2,050.00   
+================================================
+NEW ADVANCE CREDIT BALANCE               0.00   
+ACCOUNT REMAINING AR BALANCE             0.00   
+================================================
+     THIS SERVES AS AN OFFICIAL RECEIPT         
+         THANK YOU FOR CHOOSING BCIS!           
+
+Accreditation No: 088-123456789-202609          
+Date Issued     : 09/01/2026                    
+BIR Permit No   : FP-092026-8700-0042           
+Software Version: BCIS Billing Desktop v1.0.0   
+------------------------------------------------
+[ESC i] CUT PAPER COMMAND
