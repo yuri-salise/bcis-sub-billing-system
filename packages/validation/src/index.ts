@@ -686,4 +686,15 @@ export type DailyCollectionQueryInput = z.infer<typeof dailyCollectionQuerySchem
 export type BillingRevenueQueryInput = z.infer<typeof billingRevenueQuerySchema>;
 export type DelinquentReceivablesQueryInput = z.infer<typeof delinquentReceivablesQuerySchema>;
 
+// ==============================================================================
+// 12. Backup & Maintenance Schemas
+// ==============================================================================
+
+export const restoreBackupSchema = z.object({
+  filename: z.string().trim().min(1, 'Backup filename is required'),
+});
+
+export type RestoreBackupInput = z.infer<typeof restoreBackupSchema>;
+
+
 

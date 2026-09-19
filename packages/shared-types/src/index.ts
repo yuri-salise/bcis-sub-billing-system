@@ -859,3 +859,118 @@ export interface DelinquentReportDto {
   totalArrearsCentavos: number;
   accounts: DelinquentAccountDto[];
 }
+
+// ==============================================================================
+// 12. Statement of Account (SOA) Types
+// ==============================================================================
+
+export interface SoaActiveServiceDto {
+  id: string;
+  serviceAccountNumber: string;
+  serviceType: string;
+  planName: string;
+  planCode: string;
+  monthlyFeeCentavos: number;
+  status: string;
+  activationDate?: string | Date | null;
+  collectionAreaName?: string | null;
+}
+
+export interface SoaOpenInvoiceDto {
+  id: string;
+  invoiceNumber: string;
+  serviceAccountId: string;
+  billingPeriodStart: string | Date;
+  billingPeriodEnd: string | Date;
+  issueDate: string | Date;
+  dueDate: string | Date;
+  totalDueCentavos: number;
+  allocatedCentavos: number;
+  remainingBalanceCentavos: number;
+  status: string;
+  daysOverdue: number;
+}
+
+export interface SoaLedgerLineDto {
+  id: string;
+  entryDate: string | Date;
+  entryType: string;
+  referenceId: string;
+  description: string;
+  debitCentavos: number;
+  creditCentavos: number;
+  balanceAfterCentavos: number;
+}
+
+export interface StatementOfAccountDto {
+  statementNumber: string;
+  generatedAt: string;
+  subscriber: {
+    id: string;
+    accountNumber: string;
+    name: string;
+    businessName: string | null;
+    contactNumber: string;
+    email: string | null;
+    status: string;
+    primaryAddress: {
+      streetAddress: string;
+      barangay: string;
+      municipality: string;
+      province: string;
+      postalCode?: string | null;
+    } | null;
+  };
+  activeServices: SoaActiveServiceDto[];
+  currentBalanceCentavos: number;
+  advanceCreditCentavos: number;
+  totalAmountDueCentavos: number;
+  agingSummary: ArAgingSummaryDto;
+  openInvoices: SoaOpenInvoiceDto[];
+  ledgerLines: SoaLedgerLineDto[];
+}
+
+// ==============================================================================
+// 13. System Backup & Maintenance Types
+// ==============================================================================
+
+export interface BackupMetadataDto {
+  filename: string;
+  filePath: string;
+  fileSizeBytes: number;
+  checksumSha256: string;
+  createdAt: string;
+  tableCounts: Record<string, number>;
+  tableHashes?: Record<string, string>;
+  coreTableCounts: {
+    subscribers: number;
+    invoices: number;
+    payments: number;
+    receipts: number;
+    auditLogs: number;
+  };
+  triggeredBy?: string;
+  status: 'COMPLETED' | 'FAILED';
+}
+
+export interface BackupCreateResponseDto {
+  success: boolean;
+  message: string;
+  backup: BackupMetadataDto;
+}
+
+export interface BackupListResponseDto {
+  data: BackupMetadataDto[];
+  total: number;
+}
+
+export interface BackupRestoreResponseDto {
+  success: boolean;
+  message: string;
+  restoredFrom: string;
+  verification: {
+    preRestoreCounts: Record<string, number>;
+    postRestoreCounts: Record<string, number>;
+    parity: boolean;
+  };
+}

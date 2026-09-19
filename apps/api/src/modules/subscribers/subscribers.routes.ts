@@ -11,6 +11,7 @@ import {
   createSubscriber,
   updateSubscriber,
   archiveSubscriber,
+  getSubscriberSoa,
 } from './subscribers.service.js';
 import { extractActor } from '../../utils/audit.js';
 
@@ -102,6 +103,96 @@ export const subscriberRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
 
       return reply.status(200).send({
         data: subscriber,
+      });
+    }
+  );
+
+  /**
+   * GET /api/v1/subscribers/:id/soa
+   * Generates a comprehensive Statement of Account (SOA) aggregating active services,
+   * current ledger balance, advance credit, aging summary, open invoices, and chronological ledger lines.
+   * Guarded by subscribers.read permission.
+   */
+  fastify.get<{ Params: { id: string } }>(
+    '/:id/soa',
+    { preHandler: [fastify.authenticate, requirePermission(['subscribers.read', 'billing.view', 'reports.financial'])] },
+    async (request, reply) => {
+      const { id } = request.params;
+      const soa = await getSubscriberSoa(id);
+
+      if (!soa) {
+        return reply.status(404).send({
+          statusCode: 404,
+          error: 'Not Found',
+          code: 'SUBSCRIBER_NOT_FOUND',
+          message: `Subscriber with identifier '${id}' was not found`,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      return reply.status(200).send({
+        data: soa,
+      });
+    }
+  );
+
+  /**
+   * GET /api/v1/subscribers/:id/statement
+   * Alias for /api/v1/subscribers/:id/soa
+   */
+  fastify.get<{ Params: { id: string } }>(
+    '/:id/statement',
+    { preHandler: [fastify.authenticate, requirePermission(['subscribers.read', 'billing.view', 'reports.financial'])] },
+    async (request, reply) => {
+      const { id } = request.params;
+      const soa = await getSubscriberSoa(id);
+
+      if (!soa) {
+        return reply.status(404).send({
+          statusCode: 404,
+          error: 'Not Found',
+          code: 'SUBSCRIBER_NOT_FOUND',
+          message: `Subscriber with identifier '${id}' was not found`,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      return reply.status(200).send({
+        data: soa,
+      });
+    }
+  );
+
+  /**
+   * GET /api/v1/subscribers/:id/ledger
+   * Retrieves the running transaction ledger lines and current balance for a subscriber.
+   * Guarded by subscribers.read permission.
+   */
+  fastify.get<{ Params: { id: string } }>(
+    '/:id/ledger',
+    { preHandler: [fastify.authenticate, requirePermission(['subscribers.read', 'billing.view', 'reports.financial'])] },
+    async (request, reply) => {
+      const { id } = request.params;
+      const soa = await getSubscriberSoa(id);
+
+      if (!soa) {
+        return reply.status(404).send({
+          statusCode: 404,
+          error: 'Not Found',
+          code: 'SUBSCRIBER_NOT_FOUND',
+          message: `Subscriber with identifier '${id}' was not found`,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      return reply.status(200).send({
+        data: {
+          subscriberId: soa.subscriber.id,
+          accountNumber: soa.subscriber.accountNumber,
+          currentBalanceCentavos: soa.currentBalanceCentavos,
+          advanceCreditCentavos: soa.advanceCreditCentavos,
+          ledgerLines: soa.ledgerLines,
+        },
       });
     }
   );

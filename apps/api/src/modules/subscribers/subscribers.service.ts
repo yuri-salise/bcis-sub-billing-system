@@ -5,7 +5,18 @@ import {
   subscriberAddresses,
   serviceAccounts,
   servicePlans,
+  serviceTypes,
+  invoices,
+  subscriberLedger,
+  collectionAreas,
 } from '../../db/schema.js';
+import { aggregateAgingBuckets, calculateDaysOverdue } from '@bcis/domain';
+import {
+  StatementOfAccountDto,
+  SoaActiveServiceDto,
+  SoaOpenInvoiceDto,
+  SoaLedgerLineDto,
+} from '@bcis/shared-types';
 import { writeAuditLog } from '../../utils/audit.js';
 import {
   CreateSubscriberInput,
@@ -423,4 +434,158 @@ export async function archiveSubscriber(
   });
 
   return archived;
+}
+
+/**
+ * Aggregates complete Statement of Account (SOA) for a subscriber.
+ * Combines active services, current balance, advance credit, aging summary,
+ * open invoices, and chronological transaction ledger lines.
+ */
+export async function getSubscriberSoa(idOrAccountNumber: string): Promise<StatementOfAccountDto | null> {
+  const sub = await getSubscriberById(idOrAccountNumber);
+  if (!sub) return null;
+
+  // 1. Fetch active/provisioned service accounts with plan & area details
+  const accounts = await db
+    .select({
+      account: serviceAccounts,
+      planName: servicePlans.name,
+      planCode: servicePlans.planCode,
+      serviceTypeName: serviceTypes.name,
+      areaName: collectionAreas.name,
+    })
+    .from(serviceAccounts)
+    .leftJoin(servicePlans, eq(serviceAccounts.servicePlanId, servicePlans.id))
+    .leftJoin(serviceTypes, eq(servicePlans.serviceTypeId, serviceTypes.id))
+    .leftJoin(collectionAreas, eq(serviceAccounts.collectionAreaId, collectionAreas.id))
+    .where(eq(serviceAccounts.subscriberId, sub.id))
+    .orderBy(desc(serviceAccounts.createdAt));
+
+  const activeServices: SoaActiveServiceDto[] = accounts.map(({ account, planName, planCode, serviceTypeName, areaName }) => ({
+    id: account.id,
+    serviceAccountNumber: account.serviceAccountNumber,
+    serviceType: serviceTypeName ?? 'BROADBAND',
+    planName: planName ?? 'Standard Plan',
+    planCode: planCode ?? 'N/A',
+    monthlyFeeCentavos: Number(account.currentRateCentavos),
+    status: account.status,
+    activationDate: account.activationDate,
+    collectionAreaName: areaName ?? null,
+  }));
+
+  // 2. Fetch open / unpaid / partially paid / overdue invoices
+  const openInvoicesRows = await db
+    .select()
+    .from(invoices)
+    .where(
+      and(
+        eq(invoices.subscriberId, sub.id),
+        sql`${invoices.remainingBalanceCentavos} > 0`,
+        inArray(invoices.status, ['UNPAID', 'PARTIALLY_PAID', 'OVERDUE'])
+      )
+    )
+    .orderBy(asc(invoices.dueDate), asc(invoices.createdAt));
+
+  const asOfDate = new Date();
+  const openInvoices: SoaOpenInvoiceDto[] = openInvoicesRows.map((inv) => ({
+    id: inv.id,
+    invoiceNumber: inv.invoiceNumber,
+    serviceAccountId: inv.serviceAccountId,
+    billingPeriodStart: inv.billingPeriodStart,
+    billingPeriodEnd: inv.billingPeriodEnd,
+    issueDate: inv.issueDate,
+    dueDate: inv.dueDate,
+    totalDueCentavos: Number(inv.totalDueCentavos),
+    allocatedCentavos: Number(inv.allocatedCentavos),
+    remainingBalanceCentavos: Number(inv.remainingBalanceCentavos),
+    status: inv.status,
+    daysOverdue: Math.max(0, calculateDaysOverdue(inv.dueDate, asOfDate)),
+  }));
+
+  // 3. Compute 5-bucket AR aging summary using domain engine
+  const rawAging = aggregateAgingBuckets(
+    openInvoicesRows.map((inv) => ({
+      dueDate: inv.dueDate,
+      remainingBalanceCentavos: Number(inv.remainingBalanceCentavos),
+    })),
+    asOfDate
+  );
+  const agingSummary = {
+    ...rawAging,
+    asOfDate: asOfDate.toISOString().split('T')[0],
+    accountCount: openInvoicesRows.length,
+  };
+
+  // 4. Fetch chronological transaction ledger entries
+  const ledgerRows = await db
+    .select()
+    .from(subscriberLedger)
+    .where(eq(subscriberLedger.subscriberId, sub.id))
+    .orderBy(asc(subscriberLedger.entryDate), asc(subscriberLedger.createdAt));
+
+  const ledgerLines: SoaLedgerLineDto[] = ledgerRows.map((row) => ({
+    id: row.id,
+    entryDate: row.entryDate,
+    entryType: row.entryType,
+    referenceId: row.referenceId,
+    description: row.description,
+    debitCentavos: Number(row.debitCentavos),
+    creditCentavos: Number(row.creditCentavos),
+    balanceAfterCentavos: Number(row.balanceAfterCentavos),
+  }));
+
+  // 5. Calculate net running ledger balance
+  let currentBalanceCentavos = 0;
+  if (ledgerRows.length > 0) {
+    const [balanceRes] = await db
+      .select({
+        totalDebit: sql<number>`COALESCE(SUM(${subscriberLedger.debitCentavos}), 0)::bigint`,
+        totalCredit: sql<number>`COALESCE(SUM(${subscriberLedger.creditCentavos}), 0)::bigint`,
+      })
+      .from(subscriberLedger)
+      .where(eq(subscriberLedger.subscriberId, sub.id));
+    const totalDebit = Number(balanceRes?.totalDebit ?? 0);
+    const totalCredit = Number(balanceRes?.totalCredit ?? 0);
+    currentBalanceCentavos = totalDebit - totalCredit;
+  } else {
+    // If no ledger rows exist yet, net balance is open invoices sum minus advance credit
+    const totalOpenInvoices = openInvoicesRows.reduce((sum, inv) => sum + Number(inv.remainingBalanceCentavos), 0);
+    currentBalanceCentavos = totalOpenInvoices - Number(sub.advanceCreditCentavos ?? 0);
+  }
+
+  const advanceCreditCentavos = Number(sub.advanceCreditCentavos ?? 0);
+  const totalAmountDueCentavos = Math.max(0, currentBalanceCentavos);
+
+  const dateStr = asOfDate.toISOString().slice(0, 10).replace(/-/g, '');
+  const statementNumber = `SOA-${sub.accountNumber}-${dateStr}`;
+
+  return {
+    statementNumber,
+    generatedAt: asOfDate.toISOString(),
+    subscriber: {
+      id: sub.id,
+      accountNumber: sub.accountNumber,
+      name: `${sub.firstName} ${sub.lastName}`.trim(),
+      businessName: sub.businessName ?? null,
+      contactNumber: sub.contactNumber,
+      email: sub.email ?? null,
+      status: sub.status,
+      primaryAddress: sub.primaryAddress
+        ? {
+            streetAddress: sub.primaryAddress.streetAddress,
+            barangay: sub.primaryAddress.barangay,
+            municipality: sub.primaryAddress.municipality,
+            province: sub.primaryAddress.province,
+            postalCode: sub.primaryAddress.postalCode,
+          }
+        : null,
+    },
+    activeServices,
+    currentBalanceCentavos,
+    advanceCreditCentavos,
+    totalAmountDueCentavos,
+    agingSummary,
+    openInvoices,
+    ledgerLines,
+  };
 }

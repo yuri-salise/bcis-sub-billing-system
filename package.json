@@ -9,6 +9,7 @@
     "test": "pnpm --recursive run test",
     "test:unit": "pnpm --filter @bcis/domain test",
     "test:integration": "pnpm --filter @bcis/api test",
+    "test:acceptance": "pnpm --filter @bcis/api test:acceptance",
     "dev:api": "pnpm --filter @bcis/api dev",
     "dev:desktop": "pnpm --filter @bcis/desktop dev",
     "db:generate": "pnpm --filter @bcis/api db:generate",

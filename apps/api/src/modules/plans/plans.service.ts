@@ -183,7 +183,8 @@ export async function createPlan(
     throw err;
   }
 
-  const planCode = input.planCode || input.code || `PLAN-${input.serviceType.slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`;
+  const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+  const planCode = input.planCode || input.code || `PLAN-${input.serviceType.slice(0, 3).toUpperCase()}-${Date.now()}-${randomSuffix}`;
 
   // Check unique planCode
   const existing = await db

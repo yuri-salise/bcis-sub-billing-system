@@ -70,6 +70,7 @@ describe('Service Orders Engine (Phase 6)', () => {
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
         name: 'Fiber Plan 100 Mbps',
+        planCode: `SO-PLAN-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`,
         serviceType: 'INTERNET',
         monthlyFeeCentavos: 159900,
         installationFeeCentavos: 150000,

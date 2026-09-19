@@ -1,4 +1,12 @@
-import { PaymentMethod, UserRole, InvoiceStatus, ServiceOrderStatus } from '@bcis/shared-types';
+import {
+  PaymentMethod,
+  UserRole,
+  InvoiceStatus,
+  ServiceOrderStatus,
+  StatementOfAccountDto,
+  BackupMetadataDto,
+  BackupRestoreResponseDto,
+} from '@bcis/shared-types';
 import {
   UserProfile,
   SubscriberRecord,
@@ -716,6 +724,29 @@ class ApiClient {
   public async exportReportCsv(reportType: 'ar-aging' | 'daily-collections' | 'delinquent-receivables'): Promise<string> {
     const res = await this.request<string>(`/api/v1/reports/${reportType}?format=csv`);
     return res;
+  }
+
+  // 12. Statement of Account (SOA)
+  public async getSubscriberSoa(id: string): Promise<{ data: StatementOfAccountDto }> {
+    return this.request<{ data: StatementOfAccountDto }>(`/api/v1/subscribers/${id}/soa`);
+  }
+
+  // 13. System Backup & Maintenance
+  public async createBackup(): Promise<{ success: boolean; data: BackupMetadataDto }> {
+    return this.request<{ success: boolean; data: BackupMetadataDto }>(`/api/v1/system/backup`, {
+      method: 'POST',
+    });
+  }
+
+  public async listBackups(): Promise<{ data: BackupMetadataDto[]; total: number }> {
+    return this.request<{ data: BackupMetadataDto[]; total: number }>(`/api/v1/system/backups`);
+  }
+
+  public async restoreBackup(filename: string): Promise<BackupRestoreResponseDto> {
+    return this.request<BackupRestoreResponseDto>(`/api/v1/system/restore`, {
+      method: 'POST',
+      body: JSON.stringify({ filename }),
+    });
   }
 }
 

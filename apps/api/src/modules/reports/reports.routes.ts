@@ -119,49 +119,57 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance
    * 3. Daily Collection Summary Report
    * Permission: reports.financial
    */
+  const handleDailyCollection = async (request: any, reply: any) => {
+    const parsed = dailyCollectionQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        statusCode: 400,
+        error: 'Bad Request',
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid daily collection query parameters',
+        details: parsed.error.issues.map((i: any) => ({ field: i.path.join('.'), issue: i.message })),
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const actor = extractActor(request);
+    try {
+      const result = await getDailyCollectionReport(parsed.data, actor, request.ip);
+
+      if (result.format === 'csv') {
+        return reply
+          .header('Content-Type', 'text/csv; charset=utf-8')
+          .header('Content-Disposition', 'attachment; filename="daily-collection-summary.csv"')
+          .send(result.data);
+      }
+
+      return reply.send({
+        success: true,
+        data: result.data,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      const statusCode = err.statusCode || 500;
+      return reply.status(statusCode).send({
+        statusCode,
+        error: err.name || 'Error',
+        code: err.code || 'DAILY_COLLECTION_REPORT_ERROR',
+        message: err.message || 'Failed to generate daily collection summary',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  };
+
   fastify.get(
     '/daily-collection',
     { preHandler: [fastify.authenticate, requirePermission('reports.financial')] },
-    async (request, reply) => {
-      const parsed = dailyCollectionQuerySchema.safeParse(request.query);
-      if (!parsed.success) {
-        return reply.status(400).send({
-          statusCode: 400,
-          error: 'Bad Request',
-          code: 'VALIDATION_ERROR',
-          message: 'Invalid daily collection query parameters',
-          details: parsed.error.issues.map((i: any) => ({ field: i.path.join('.'), issue: i.message })),
-          timestamp: new Date().toISOString(),
-        });
-      }
+    handleDailyCollection
+  );
 
-      const actor = extractActor(request);
-      try {
-        const result = await getDailyCollectionReport(parsed.data, actor, request.ip);
-
-        if (result.format === 'csv') {
-          return reply
-            .header('Content-Type', 'text/csv; charset=utf-8')
-            .header('Content-Disposition', 'attachment; filename="daily-collection-summary.csv"')
-            .send(result.data);
-        }
-
-        return reply.send({
-          success: true,
-          data: result.data,
-          timestamp: new Date().toISOString(),
-        });
-      } catch (err: any) {
-        const statusCode = err.statusCode || 500;
-        return reply.status(statusCode).send({
-          statusCode,
-          error: err.name || 'Error',
-          code: err.code || 'DAILY_COLLECTION_REPORT_ERROR',
-          message: err.message || 'Failed to generate daily collection summary',
-          timestamp: new Date().toISOString(),
-        });
-      }
-    }
+  fastify.get(
+    '/daily-collections',
+    { preHandler: [fastify.authenticate, requirePermission('reports.financial')] },
+    handleDailyCollection
   );
 
   /**

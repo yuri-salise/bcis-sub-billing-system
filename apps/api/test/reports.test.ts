@@ -130,6 +130,7 @@ describe('Reports, Dunning Management & Analytics Engine (Phase 7 - Reports)', (
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
         name: 'Reports Test Plan',
+        planCode: `RTP-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`,
         serviceType: 'INTERNET',
         monthlyFeeCentavos: 100000,
         installationFeeCentavos: 50000,
