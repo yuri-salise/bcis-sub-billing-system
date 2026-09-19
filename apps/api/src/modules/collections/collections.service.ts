@@ -371,6 +371,23 @@ export async function deleteCollectionArea(
     throw err;
   }
 
+  // Check if any collection batches reference this area
+  const [hasBatches] = await db
+    .select()
+    .from(collectionBatches)
+    .where(eq(collectionBatches.collectionAreaId, id))
+    .limit(1);
+
+  if (hasBatches) {
+    const err = new Error('Cannot delete collection area with existing collection batches. Deactivate the area instead.') as Error & {
+      statusCode: number;
+      code: string;
+    };
+    err.statusCode = 400;
+    err.code = 'AREA_HAS_BATCHES';
+    throw err;
+  }
+
   // Check if any service accounts are directly assigned to this area
   const [hasAccounts] = await db
     .select({ id: serviceAccounts.id })
@@ -403,23 +420,6 @@ export async function deleteCollectionArea(
     };
     err.statusCode = 400;
     err.code = 'AREA_ROUTES_HAVE_ACCOUNTS';
-    throw err;
-  }
-
-  // Check if any collection batches reference this area
-  const [hasBatches] = await db
-    .select()
-    .from(collectionBatches)
-    .where(eq(collectionBatches.collectionAreaId, id))
-    .limit(1);
-
-  if (hasBatches) {
-    const err = new Error('Cannot delete collection area with existing collection batches. Deactivate the area instead.') as Error & {
-      statusCode: number;
-      code: string;
-    };
-    err.statusCode = 400;
-    err.code = 'AREA_HAS_BATCHES';
     throw err;
   }
 
