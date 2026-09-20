@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { formatCurrency, parseCurrencyToCentavos } from '@bcis/domain';
 import { ServiceOrderRecord } from '../api/types.js';
 import { apiClient } from '../api/client.js';
+import { IconPlus, IconX } from '../components/icons/index.js';
 
 export const ServiceOrdersWorkspace: React.FC = () => {
   const [orders, setOrders] = useState<ServiceOrderRecord[]>([]);
@@ -114,8 +115,10 @@ export const ServiceOrdersWorkspace: React.FC = () => {
           type="button"
           onClick={() => setIsNewOrderModalOpen(true)}
           className="btn-primary"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
         >
-          + Create Service Order
+          <IconPlus size={14} strokeWidth={2} />
+          <span>Create Service Order</span>
         </button>
       </div>
 
@@ -248,9 +251,10 @@ export const ServiceOrdersWorkspace: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsDetailModalOpen(false)}
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '18px' }}
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                title="Close dialog"
               >
-                ✕
+                <IconX size={16} strokeWidth={2} />
               </button>
             </div>
 
@@ -360,8 +364,13 @@ export const ServiceOrdersWorkspace: React.FC = () => {
           <div className="glass-modal modal-animate-enter" style={{ width: '480px', backgroundColor: '#FFFFFF', overflow: 'hidden' }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ fontSize: '16px', fontWeight: 600 }}>Create Service Order</h3>
-              <button type="button" onClick={() => setIsNewOrderModalOpen(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '18px' }}>
-                ✕
+              <button
+                type="button"
+                onClick={() => setIsNewOrderModalOpen(false)}
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                title="Close dialog"
+              >
+                <IconX size={16} strokeWidth={2} />
               </button>
             </div>
             <form onSubmit={handleCreateOrder} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>

@@ -125,4 +125,51 @@ describe('Payment Allocation Engine & Acceptance Criteria (AT-01 to AT-04)', () 
     expect(sepAlloc.newRemainingBalanceCentavos).toBe(79800);
     expect(sepAlloc.newStatus).toBe(InvoiceStatus.PARTIALLY_PAID);
   });
+
+  it('strictly skips DRAFT and VOID invoices from receiving payment and reserves funds as advance credit', () => {
+    const invoices: AllocatableInvoice[] = [
+      {
+        id: 'inv-draft',
+        invoiceNumber: 'INV-DRAFT-001',
+        dueDate: '2026-08-15T00:00:00.000Z',
+        createdAt: '2026-08-01T00:00:00.000Z',
+        totalDueCentavos: 149950,
+        allocatedCentavos: 0,
+        remainingBalanceCentavos: 149950,
+        status: InvoiceStatus.DRAFT,
+      },
+      {
+        id: 'inv-void',
+        invoiceNumber: 'INV-VOID-002',
+        dueDate: '2026-08-20T00:00:00.000Z',
+        createdAt: '2026-08-05T00:00:00.000Z',
+        totalDueCentavos: 50000,
+        allocatedCentavos: 0,
+        remainingBalanceCentavos: 50000,
+        status: InvoiceStatus.VOID,
+      },
+      {
+        id: 'inv-posted',
+        invoiceNumber: 'INV-POSTED-003',
+        dueDate: '2026-09-15T00:00:00.000Z',
+        createdAt: '2026-09-01T00:00:00.000Z',
+        totalDueCentavos: 99900,
+        allocatedCentavos: 0,
+        remainingBalanceCentavos: 99900,
+        status: InvoiceStatus.UNPAID,
+      },
+    ];
+
+    // Pay ₱1,500.00 (150000 centavos)
+    const result = allocatePaymentFIFO(150000, invoices);
+
+    // Only inv-posted should be allocated (99900 centavos). DRAFT and VOID are untouched.
+    expect(result.totalAllocatedCentavos).toBe(99900);
+    expect(result.allocations).toHaveLength(1);
+    expect(result.allocations[0].invoiceId).toBe('inv-posted');
+    expect(result.allocations[0].newStatus).toBe(InvoiceStatus.PAID);
+
+    // Remaining funds 150000 - 99900 = 50100 centavos go to advance credit!
+    expect(result.advanceCreditCentavos).toBe(50100);
+  });
 });

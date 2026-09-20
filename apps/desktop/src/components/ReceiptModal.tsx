@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { formatCurrency } from '@bcis/domain';
 import { PaymentReceipt } from '../api/types.js';
 import { useConfig } from '../state/ConfigContext.js';
+import { IconX, IconPrinter, IconCheck } from './icons/index.js';
 
 interface ReceiptModalProps {
   receipt: PaymentReceipt;
@@ -115,9 +116,13 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                 cursor: 'pointer',
                 color: 'var(--text-tertiary)',
                 padding: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                borderRadius: '4px',
               }}
+              title="Close receipt preview"
             >
-              ✕
+              <IconX size={16} strokeWidth={2} />
             </button>
           </div>
         </div>
@@ -265,8 +270,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
         >
           <div>
             {printSuccess && (
-              <span style={{ fontSize: '13px', color: '#059669', fontWeight: 500 }}>
-                ✓ Printed to thermal receipt printer
+              <span style={{ fontSize: '13px', color: '#059669', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <IconCheck size={14} strokeWidth={2} />
+                <span>Printed to thermal receipt printer</span>
               </span>
             )}
           </div>
@@ -279,12 +285,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
               onClick={handlePrint}
               disabled={isPrinting}
               className="btn-primary"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="6 9 6 2 18 2 18 9" />
-                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-                <rect x="6" y="14" width="12" height="8" />
-              </svg>
+              <IconPrinter size={15} strokeWidth={2} />
               <span>{isPrinting ? 'Printing...' : 'Print Official Receipt'}</span>
             </button>
           </div>

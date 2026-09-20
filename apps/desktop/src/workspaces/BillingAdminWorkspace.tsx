@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { formatCurrency, parseCurrencyToCentavos } from '@bcis/domain';
 import { ServicePlanRecord, SubscriberRecord } from '../api/types.js';
 import { apiClient } from '../api/client.js';
+import { IconPlus, IconX } from '../components/icons/index.js';
 
 export const BillingAdminWorkspace: React.FC = () => {
   const [plans, setPlans] = useState<ServicePlanRecord[]>([]);
@@ -338,9 +339,10 @@ export const BillingAdminWorkspace: React.FC = () => {
               type="button"
               onClick={() => setIsPlanModalOpen(true)}
               className="btn-secondary"
-              style={{ fontSize: '11px', padding: '4px 10px' }}
+              style={{ fontSize: '11px', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
             >
-              + New Plan
+              <IconPlus size={12} strokeWidth={2} />
+              <span>New Plan</span>
             </button>
           </div>
 
@@ -383,9 +385,10 @@ export const BillingAdminWorkspace: React.FC = () => {
               type="button"
               onClick={() => setIsSubscriberModalOpen(true)}
               className="btn-primary"
-              style={{ fontSize: '11px', padding: '4px 10px' }}
+              style={{ fontSize: '11px', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
             >
-              + Register Subscriber
+              <IconPlus size={12} strokeWidth={2} />
+              <span>Register Subscriber</span>
             </button>
           </div>
 
@@ -467,9 +470,10 @@ export const BillingAdminWorkspace: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsSubscriberModalOpen(false)}
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '18px' }}
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                title="Close dialog"
               >
-                ✕
+                <IconX size={16} strokeWidth={2} />
               </button>
             </div>
 
@@ -601,9 +605,10 @@ export const BillingAdminWorkspace: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsPlanModalOpen(false)}
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '18px' }}
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                title="Close dialog"
               >
-                ✕
+                <IconX size={16} strokeWidth={2} />
               </button>
             </div>
 
@@ -726,9 +731,10 @@ export const BillingAdminWorkspace: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsEditSubModalOpen(false)}
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '18px' }}
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                title="Close dialog"
               >
-                ✕
+                <IconX size={16} strokeWidth={2} />
               </button>
             </div>
 

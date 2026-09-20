@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { formatCurrency } from '@bcis/domain';
 import { CollectionAreaRecord, CollectionRouteRecord, RouteSheetItem } from '../api/types.js';
 import { apiClient } from '../api/client.js';
+import { IconPrinter } from '../components/icons/index.js';
 
 export const CollectionsWorkspace: React.FC = () => {
   const [areas, setAreas] = useState<CollectionAreaRecord[]>([]);
@@ -16,9 +17,10 @@ export const CollectionsWorkspace: React.FC = () => {
     const loadAreas = async () => {
       try {
         const res = await apiClient.listAreas();
-        setAreas(res.data);
-        if (res.data.length > 0) {
-          setSelectedAreaId(res.data[0].id);
+        const areaList = Array.isArray(res?.data) ? res.data : [];
+        setAreas(areaList);
+        if (areaList.length > 0) {
+          setSelectedAreaId(areaList[0].id);
         }
       } catch {}
     };
@@ -32,7 +34,7 @@ export const CollectionsWorkspace: React.FC = () => {
       setIsLoading(true);
       try {
         const routesRes = await apiClient.listRoutes(selectedAreaId);
-        setRoutes(routesRes.data);
+        setRoutes(Array.isArray(routesRes?.data) ? routesRes.data : []);
 
         let sheetRes;
         if (selectedRouteId !== 'ALL') {
@@ -40,7 +42,12 @@ export const CollectionsWorkspace: React.FC = () => {
         } else {
           sheetRes = await apiClient.getAreaRouteSheet(selectedAreaId, overdueOnly);
         }
-        setRouteSheet(sheetRes.data);
+        const items = Array.isArray(sheetRes?.data)
+          ? sheetRes.data
+          : (sheetRes?.data && Array.isArray((sheetRes.data as any).accounts))
+          ? (sheetRes.data as any).accounts
+          : [];
+        setRouteSheet(items);
       } catch {
         setRoutes([]);
         setRouteSheet([]);
@@ -53,21 +60,22 @@ export const CollectionsWorkspace: React.FC = () => {
   }, [selectedAreaId, selectedRouteId, overdueOnly]);
 
   const filteredItems = useMemo(() => {
-    let list = routeSheet;
+    let list = Array.isArray(routeSheet) ? routeSheet : [];
     if (selectedRouteId !== 'ALL') {
       list = list.filter((item) => !item.routeId || item.routeId === selectedRouteId || item.collectionRouteId === selectedRouteId);
     }
     if (overdueOnly) {
-      list = list.filter((item) => item.arrearsCentavos > 0);
+      list = list.filter((item) => (item.arrearsCentavos || 0) > 0);
     }
     return list;
   }, [routeSheet, selectedRouteId, overdueOnly]);
 
   const totalArrearsCentavos = useMemo(() => {
-    return filteredItems.reduce((acc, item) => acc + item.arrearsCentavos, 0);
+    if (!Array.isArray(filteredItems)) return 0;
+    return filteredItems.reduce((acc, item) => acc + (item?.arrearsCentavos || 0), 0);
   }, [filteredItems]);
 
-  const selectedArea = areas.find((a) => a.id === selectedAreaId);
+  const selectedArea = Array.isArray(areas) ? areas.find((a) => a.id === selectedAreaId) : undefined;
 
   return (
     <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', flex: 1, overflowY: 'auto' }}>
@@ -135,11 +143,7 @@ export const CollectionsWorkspace: React.FC = () => {
             onClick={() => window.print()}
             style={{ fontSize: '12px', padding: '6px 14px' }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="6 9 6 2 18 2 18 9" />
-              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-              <rect x="6" y="14" width="12" height="8" />
-            </svg>
+            <IconPrinter size={14} />
             <span>Print Run Sheet</span>
           </button>
         </div>

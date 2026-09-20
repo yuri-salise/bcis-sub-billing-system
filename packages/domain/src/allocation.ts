@@ -8,6 +8,7 @@ export interface AllocatableInvoice {
   totalDueCentavos: number;
   allocatedCentavos: number;
   remainingBalanceCentavos: number;
+  status?: InvoiceStatus | string;
 }
 
 export interface InvoiceAllocationResult {
@@ -58,6 +59,16 @@ export function allocatePaymentFIFO(
 
   for (const inv of sorted) {
     if (unallocated <= 0) break;
+
+    // Invoices in DRAFT or VOID status cannot receive payments (unposted or invalidated)
+    if (
+      inv.status === InvoiceStatus.DRAFT ||
+      (inv.status as string) === 'DRAFT' ||
+      inv.status === InvoiceStatus.VOID ||
+      (inv.status as string) === 'VOID'
+    ) {
+      continue;
+    }
 
     const remainingToPay = inv.remainingBalanceCentavos;
     if (remainingToPay <= 0) continue;

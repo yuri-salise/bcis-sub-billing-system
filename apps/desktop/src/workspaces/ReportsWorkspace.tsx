@@ -2,6 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { formatCurrency } from '@bcis/domain';
 import { ArAgingBucketSummary, DailyCollectionItem, DailyCollectionReportData } from '../api/types.js';
 import { apiClient } from '../api/client.js';
+import {
+  IconBanknote,
+  IconSmartphone,
+  IconBuilding,
+  IconReceipt,
+  IconFileSpreadsheet,
+} from '../components/icons/index.js';
 
 export const ReportsWorkspace: React.FC = () => {
   const [arBuckets, setArBuckets] = useState<ArAgingBucketSummary[]>([]);
@@ -85,27 +92,30 @@ export const ReportsWorkspace: React.FC = () => {
             onClick={() => handleExportCsv('ar-aging')}
             disabled={isExporting !== null}
             className="btn-secondary"
-            style={{ fontSize: '12px' }}
+            style={{ fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
           >
-            {isExporting === 'ar-aging' ? 'Exporting...' : 'Export AR Aging (CSV)'}
+            <IconFileSpreadsheet size={14} strokeWidth={1.8} />
+            <span>{isExporting === 'ar-aging' ? 'Exporting...' : 'Export AR Aging (CSV)'}</span>
           </button>
           <button
             type="button"
             onClick={() => handleExportCsv('daily-collections')}
             disabled={isExporting !== null}
             className="btn-secondary"
-            style={{ fontSize: '12px' }}
+            style={{ fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
           >
-            {isExporting === 'daily-collections' ? 'Exporting...' : 'Export Daily Collections (CSV)'}
+            <IconFileSpreadsheet size={14} strokeWidth={1.8} />
+            <span>{isExporting === 'daily-collections' ? 'Exporting...' : 'Export Daily Collections (CSV)'}</span>
           </button>
           <button
             type="button"
             onClick={() => handleExportCsv('delinquent-receivables')}
             disabled={isExporting !== null}
             className="btn-primary"
-            style={{ fontSize: '12px' }}
+            style={{ fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
           >
-            {isExporting === 'delinquent-receivables' ? 'Exporting...' : 'Export Delinquency List (CSV)'}
+            <IconFileSpreadsheet size={14} strokeWidth={1.8} />
+            <span>{isExporting === 'delinquent-receivables' ? 'Exporting...' : 'Export Delinquency List (CSV)'}</span>
           </button>
         </div>
       </div>
@@ -211,12 +221,25 @@ export const ReportsWorkspace: React.FC = () => {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
             {['CASH', 'GCASH', 'BANK_TRANSFER', 'CHECK'].map((m) => {
               const methodData = dailyReport.byMethod[m] || { count: 0, totalCentavos: 0 };
-              const labels: Record<string, string> = {
-                CASH: '💵 Cash Tendered',
-                GCASH: '📱 GCash Digital',
-                BANK_TRANSFER: '🏦 Bank Transfer',
-                CHECK: '🧾 Checks Received',
+              const methodConfig: Record<string, { label: string; icon: React.ReactNode }> = {
+                CASH: {
+                  label: 'Cash Tendered',
+                  icon: <IconBanknote size={14} strokeWidth={2} style={{ color: '#059669' }} />,
+                },
+                GCASH: {
+                  label: 'GCash Digital',
+                  icon: <IconSmartphone size={14} strokeWidth={2} style={{ color: '#0071E3' }} />,
+                },
+                BANK_TRANSFER: {
+                  label: 'Bank Transfer',
+                  icon: <IconBuilding size={14} strokeWidth={2} style={{ color: '#7C3AED' }} />,
+                },
+                CHECK: {
+                  label: 'Checks Received',
+                  icon: <IconReceipt size={14} strokeWidth={2} style={{ color: '#D97706' }} />,
+                },
               };
+              const config = methodConfig[m] || { label: m, icon: null };
               return (
                 <div
                   key={m}
@@ -227,8 +250,9 @@ export const ReportsWorkspace: React.FC = () => {
                     border: '1px solid var(--border-subtle)',
                   }}
                 >
-                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                    {labels[m] || m}
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {config.icon}
+                    <span>{config.label}</span>
                   </div>
                   <div className="tabular-nums font-bold" style={{ fontSize: '15px', color: 'var(--text-primary)', marginTop: '4px' }}>
                     {formatCurrency(methodData.totalCentavos)}

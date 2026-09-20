@@ -236,6 +236,7 @@ export async function executePostPayment(
     invoiceNumber: inv.invoiceNumber,
     dueDate: inv.dueDate,
     createdAt: inv.createdAt.toISOString(),
+    status: inv.status,
     totalDueCentavos: inv.totalDueCentavos,
     allocatedCentavos: inv.allocatedCentavos,
     remainingBalanceCentavos: inv.remainingBalanceCentavos,

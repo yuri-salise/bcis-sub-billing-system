@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserRole } from '@bcis/shared-types';
 import { UserProfile } from '../api/types.js';
 import { apiClient } from '../api/client.js';
+import { getRoleDisplayName } from '../auth/rbac.js';
 
 interface AuthContextType {
   token: string | null;
@@ -10,6 +11,7 @@ interface AuthContextType {
   isLocked: boolean;
   activeRole: UserRole;
   setActiveRole: (role: UserRole) => void;
+  switchTestAccount: (role: UserRole) => Promise<void>;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   lockScreen: () => Promise<void>;
@@ -25,48 +27,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [activeRole, setActiveRole] = useState<UserRole>(UserRole.CASHIER);
 
   useEffect(() => {
-    // Check main process lock status and token on startup
-    if (typeof window !== 'undefined' && window.api) {
-      window.api.storage.getToken().then((tok) => {
-        if (tok) {
-          setToken(tok);
-          apiClient.setToken(tok);
-          apiClient.getMe().then((res) => {
-            setUser(res.user);
-            if (res.user.roles.length > 0) {
-              setActiveRole(res.user.roles[0]);
-            }
-          }).catch(() => {
-            // Offline fallback demo user
-            const demoUser: UserProfile = {
-              id: 'local-cashier',
-              username: 'cashier',
-              fullName: 'Maria Santos (Cashier Counter 1)',
-              roles: [UserRole.CASHIER, UserRole.SUPER_ADMIN],
-              permissions: ['*'],
-            };
-            setUser(demoUser);
-            setActiveRole(UserRole.CASHIER);
-          });
-        }
-      }).catch(() => {});
+    // Check saved token or initialize default cashier session
+    const initAuth = async () => {
+      let savedToken: string | null = null;
+      if (typeof window !== 'undefined' && window.api) {
+        try {
+          savedToken = await window.api.storage.getToken();
+          const lockState = await window.api.app.isLocked();
+          setIsLocked(lockState.isLocked);
+        } catch {}
+      }
 
-      window.api.app.isLocked().then((res) => {
-        setIsLocked(res.isLocked);
-      }).catch(() => {});
-    } else {
-      // Browser environment default demo cashier
-      const demoUser: UserProfile = {
-        id: 'local-cashier',
-        username: 'cashier',
-        fullName: 'Maria Santos (Cashier Counter 1)',
-        roles: [UserRole.CASHIER, UserRole.SUPER_ADMIN],
-        permissions: ['*'],
-      };
-      setUser(demoUser);
-      setToken('demo-active-token');
-      apiClient.setToken('demo-active-token');
-    }
+      if (savedToken) {
+        setToken(savedToken);
+        apiClient.setToken(savedToken);
+        try {
+          const res = await apiClient.getMe();
+          setUser(res.user);
+          if (res.user.roles.length > 0) {
+            setActiveRole(res.user.roles[0]);
+          }
+          return;
+        } catch {
+          // Token invalid or expired, continue to login fallback
+        }
+      }
+
+      // Automatically authenticate default cashier session
+      try {
+        const loginRes = await apiClient.login('cashier', 'Cashier123!');
+        setToken(loginRes.token);
+        setUser(loginRes.user);
+        if (loginRes.user.roles.length > 0) {
+          setActiveRole(loginRes.user.roles[0]);
+        }
+        if (typeof window !== 'undefined' && window.api) {
+          await window.api.storage.setToken(loginRes.token).catch(() => {});
+        }
+      } catch {
+        const demoUser: UserProfile = {
+          id: 'local-cashier',
+          username: 'cashier',
+          fullName: 'Maria Santos (Cashier Counter 1)',
+          roles: [UserRole.CASHIER],
+          permissions: ['subscriber.view', 'service_account.view', 'billing.view', 'payment.create', 'receipt.view', 'receipt.reprint'],
+        };
+        setUser(demoUser);
+        setActiveRole(UserRole.CASHIER);
+      }
+    };
+
+    initAuth();
   }, []);
 
   const login = async (username: string, password: string) => {
@@ -117,6 +128,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const switchTestAccount = async (role: UserRole): Promise<void> => {
+    setActiveRole(role);
+
+    const testCreds: Record<UserRole, { username: string; pass: string }> = {
+      [UserRole.CASHIER]: { username: 'cashier', pass: 'Cashier123!' },
+      [UserRole.TECHNICIAN]: { username: 'technician', pass: 'Tech123!' },
+      [UserRole.COLLECTION_SUPERVISOR]: { username: 'collector_supv', pass: 'Supervisor123!' },
+      [UserRole.ACCOUNTING]: { username: 'accounting', pass: 'Accounting123!' },
+      [UserRole.ADMIN]: { username: 'billing_admin', pass: 'Admin123!' },
+      [UserRole.SUPER_ADMIN]: { username: 'admin', pass: 'Admin123!' },
+      [UserRole.VIEWER]: { username: 'viewer', pass: 'Viewer123!' },
+    };
+
+    const target = testCreds[role] || { username: 'cashier', pass: 'Cashier123!' };
+    try {
+      const result = await apiClient.login(target.username, target.pass);
+      setToken(result.token);
+      setUser(result.user);
+      if (result.user.roles.length > 0) {
+        setActiveRole(role);
+      }
+    } catch {
+      // In case of offline demo or unexpected login error, construct mock profile directly
+      const fallbackUser: UserProfile = {
+        id: `mock-${target.username}-id`,
+        username: target.username,
+        fullName: getRoleDisplayName(role),
+        roles: [role],
+        permissions: role === UserRole.SUPER_ADMIN ? ['*'] : [],
+      };
+      setUser(fallbackUser);
+      setActiveRole(role);
+    }
+  };
+
+  const handleSetActiveRole = (role: UserRole) => {
+    setActiveRole(role);
+    if (!user || !user.roles.includes(role)) {
+      switchTestAccount(role).catch(() => {});
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -125,7 +178,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated: !!token || !!user,
         isLocked,
         activeRole,
-        setActiveRole,
+        setActiveRole: handleSetActiveRole,
+        switchTestAccount,
         login,
         logout,
         lockScreen,

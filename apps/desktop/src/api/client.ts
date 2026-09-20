@@ -23,6 +23,196 @@ import {
   LANServerHealth,
 } from './types.js';
 
+function normalizeSubscriber(raw: any): SubscriberRecord {
+  const addr = raw.primaryAddress || {};
+  const street = addr.streetAddress || addr.addressLine1 || '';
+  const brgy = addr.barangay || '';
+  const mun = addr.municipality || addr.city || 'Malaybalay';
+  const prov = addr.province || 'Bukidnon';
+  const postal = addr.postalCode || '8700';
+
+  const advance = raw.advanceCreditCentavos ?? raw.advancePaymentCentavos ?? 0;
+  const balance = raw.currentBalanceCentavos ?? 0;
+  const phone = raw.contactNumber || raw.phone || '';
+
+  return {
+    id: raw.id,
+    accountNumber: raw.accountNumber,
+    firstName: raw.firstName,
+    lastName: raw.lastName,
+    middleName: raw.middleName || null,
+    companyName: raw.businessName || raw.companyName || null,
+    businessName: raw.businessName || raw.companyName || null,
+    status: raw.status || 'ACTIVE',
+    email: raw.email || null,
+    phone,
+    contactNumber: phone,
+    currentBalanceCentavos: balance,
+    advancePaymentCentavos: advance,
+    advanceCreditCentavos: advance,
+    serviceAccounts: raw.serviceAccounts || [],
+    primaryAddress: {
+      addressLine1: street,
+      streetAddress: street,
+      barangay: brgy,
+      city: mun,
+      municipality: mun,
+      province: prov,
+      postalCode: postal,
+    },
+  };
+}
+
+let mockSubscribers: SubscriberRecord[] = [
+  {
+    id: 'sub-001',
+    accountNumber: 'SUB-2026-0001',
+    firstName: 'Juan',
+    lastName: 'Dela Cruz',
+    phone: '09171234567',
+    contactNumber: '09171234567',
+    email: 'juan@example.ph',
+    status: 'ACTIVE',
+    currentBalanceCentavos: 149950,
+    advancePaymentCentavos: 0,
+    advanceCreditCentavos: 0,
+    primaryAddress: {
+      addressLine1: 'Purok 4, Sayre Highway',
+      streetAddress: 'Purok 4, Sayre Highway',
+      barangay: 'Poblacion',
+      city: 'Malaybalay',
+      municipality: 'Malaybalay',
+      province: 'Bukidnon',
+    },
+    serviceAccounts: [
+      {
+        id: 'acc-001',
+        accountNumber: 'ACC-1001',
+        serviceType: 'INTERNET',
+        status: 'ACTIVE',
+        planName: 'Fiber Pro 50Mbps',
+        monthlyFeeCentavos: 149950,
+      },
+    ],
+  },
+  {
+    id: 'sub-002',
+    accountNumber: 'SUB-2026-0002',
+    firstName: 'Maria',
+    lastName: 'Clara',
+    phone: '09189876543',
+    contactNumber: '09189876543',
+    email: 'maria@example.ph',
+    status: 'ACTIVE',
+    currentBalanceCentavos: 99900,
+    advancePaymentCentavos: 50000,
+    advanceCreditCentavos: 50000,
+    primaryAddress: {
+      addressLine1: 'Block 2 Lot 12, Sunrise Village',
+      streetAddress: 'Block 2 Lot 12, Sunrise Village',
+      barangay: 'Casisang',
+      city: 'Malaybalay',
+      municipality: 'Malaybalay',
+      province: 'Bukidnon',
+    },
+    serviceAccounts: [
+      {
+        id: 'acc-002',
+        accountNumber: 'ACC-1002',
+        serviceType: 'CABLE',
+        status: 'ACTIVE',
+        planName: 'Digital Cable Deluxe',
+        monthlyFeeCentavos: 99900,
+      },
+    ],
+  },
+  {
+    id: 'sub-003',
+    accountNumber: 'SUB-2026-0003',
+    firstName: 'Antonio',
+    lastName: 'Luna',
+    phone: '09205551212',
+    contactNumber: '09205551212',
+    status: 'DELINQUENT',
+    currentBalanceCentavos: 299800,
+    advancePaymentCentavos: 0,
+    advanceCreditCentavos: 0,
+    primaryAddress: {
+      addressLine1: 'Km 5 Fortich St',
+      streetAddress: 'Km 5 Fortich St',
+      barangay: 'Sumpong',
+      city: 'Malaybalay',
+      municipality: 'Malaybalay',
+      province: 'Bukidnon',
+    },
+    serviceAccounts: [
+      {
+        id: 'acc-003',
+        accountNumber: 'ACC-1003',
+        serviceType: 'BUNDLE',
+        status: 'DELINQUENT',
+        planName: 'Fiber + Cable Ultimate',
+        monthlyFeeCentavos: 149900,
+      },
+    ],
+  },
+];
+
+let mockInvoices: InvoiceRecord[] = [
+  {
+    id: 'inv-001',
+    invoiceNumber: 'INV-202608-0120',
+    serviceAccountId: 'acc-001',
+    subscriberId: 'sub-001',
+    billingPeriodStart: '2026-08-01',
+    billingPeriodEnd: '2026-08-31',
+    issueDate: '2026-09-01',
+    dueDate: '2026-09-15',
+    totalDueCentavos: 149950,
+    remainingBalanceCentavos: 149950,
+    status: InvoiceStatus.UNPAID,
+  },
+  {
+    id: 'inv-002',
+    invoiceNumber: 'INV-202608-0121',
+    serviceAccountId: 'acc-002',
+    subscriberId: 'sub-002',
+    billingPeriodStart: '2026-08-01',
+    billingPeriodEnd: '2026-08-31',
+    issueDate: '2026-09-01',
+    dueDate: '2026-09-15',
+    totalDueCentavos: 99900,
+    remainingBalanceCentavos: 99900,
+    status: InvoiceStatus.UNPAID,
+  },
+  {
+    id: 'inv-003-1',
+    invoiceNumber: 'INV-202607-0099',
+    serviceAccountId: 'acc-003',
+    subscriberId: 'sub-003',
+    billingPeriodStart: '2026-07-01',
+    billingPeriodEnd: '2026-07-31',
+    issueDate: '2026-08-01',
+    dueDate: '2026-08-15',
+    totalDueCentavos: 149900,
+    remainingBalanceCentavos: 149900,
+    status: InvoiceStatus.OVERDUE,
+  },
+  {
+    id: 'inv-003-2',
+    invoiceNumber: 'INV-202608-0122',
+    serviceAccountId: 'acc-003',
+    subscriberId: 'sub-003',
+    billingPeriodStart: '2026-08-01',
+    billingPeriodEnd: '2026-08-31',
+    issueDate: '2026-09-01',
+    dueDate: '2026-09-15',
+    totalDueCentavos: 149900,
+    remainingBalanceCentavos: 149900,
+    status: InvoiceStatus.OVERDUE,
+  },
+];
+
 class ApiClient {
   private baseUrl: string = 'http://127.0.0.1:4000';
   private token: string | null = null;
@@ -129,16 +319,69 @@ class ApiClient {
       return result;
     } catch (err) {
       // If offline demo fallback
-      if (username === 'admin' || username === 'cashier') {
-        const mockRole = username === 'admin' ? UserRole.SUPER_ADMIN : UserRole.CASHIER;
-        const mockUser: UserProfile = {
-          id: 'mock-user-id',
-          username,
-          fullName: username === 'admin' ? 'BCIS Administrator' : 'Maria Santos (Cashier)',
-          roles: [mockRole],
+      const mockAccounts: Record<string, { role: UserRole; name: string; permissions: string[] }> = {
+        cashier: {
+          role: UserRole.CASHIER,
+          name: 'Maria Santos (Cashier)',
+          permissions: ['subscriber.view', 'service_account.view', 'billing.view', 'payment.create', 'receipt.view', 'receipt.reprint', 'gcash.view'],
+        },
+        admin: {
+          role: UserRole.SUPER_ADMIN,
+          name: 'BCIS System Administrator',
           permissions: ['*'],
+        },
+        billing_admin: {
+          role: UserRole.ADMIN,
+          name: 'BCIS Billing Administrator',
+          permissions: ['subscriber.view', 'subscriber.create', 'subscriber.update', 'service_plan.manage', 'billing.generate', 'report.operational', 'report.financial'],
+        },
+        superadmin: {
+          role: UserRole.SUPER_ADMIN,
+          name: 'Owner / Super Admin',
+          permissions: ['*'],
+        },
+        collector: {
+          role: UserRole.COLLECTION_SUPERVISOR,
+          name: 'Carlos Lim (Collection Supervisor)',
+          permissions: ['collection.view', 'collection.batch_create', 'collection.enter_field', 'collection.reconcile', 'report.operational'],
+        },
+        collector_supv: {
+          role: UserRole.COLLECTION_SUPERVISOR,
+          name: 'Carlos Lim (Collection Supervisor)',
+          permissions: ['collection.view', 'collection.batch_create', 'collection.enter_field', 'collection.reconcile', 'report.operational'],
+        },
+        tech: {
+          role: UserRole.TECHNICIAN,
+          name: 'Juan Dela Cruz (Technician)',
+          permissions: ['service_orders.read', 'service_orders.update', 'service_orders.complete', 'service_control.view'],
+        },
+        technician: {
+          role: UserRole.TECHNICIAN,
+          name: 'Juan Dela Cruz (Technician)',
+          permissions: ['service_orders.read', 'service_orders.update', 'service_orders.complete', 'service_control.view'],
+        },
+        accounting: {
+          role: UserRole.ACCOUNTING,
+          name: 'Elena Ramos (Auditor)',
+          permissions: ['billing.view', 'report.financial', 'receivable.view_aging', 'audit.view'],
+        },
+        viewer: {
+          role: UserRole.VIEWER,
+          name: 'Auditor Viewer',
+          permissions: ['subscriber.view', 'billing.view', 'report.operational'],
+        },
+      };
+
+      const account = mockAccounts[username.toLowerCase()];
+      if (account) {
+        const mockUser: UserProfile = {
+          id: `mock-${username}-id`,
+          username,
+          fullName: account.name,
+          roles: [account.role],
+          permissions: account.permissions,
         };
-        const mockToken = 'mock-jwt-offline-token';
+        const mockToken = `mock-jwt-offline-${username}-token`;
         this.setToken(mockToken);
         return { token: mockToken, user: mockUser };
       }
@@ -171,7 +414,7 @@ class ApiClient {
   // 3. Subscribers
   public async listSubscribers(params?: { search?: string; status?: string; page?: number; limit?: number }): Promise<{
     data: SubscriberRecord[];
-    pagination: { total: number; page: number; limit: number };
+    pagination: any;
   }> {
     const searchParams = new URLSearchParams();
     if (params?.search) searchParams.set('search', params.search);
@@ -180,133 +423,142 @@ class ApiClient {
     if (params?.limit) searchParams.set('limit', String(params.limit));
 
     try {
-      return await this.request(`/api/v1/subscribers?${searchParams.toString()}`);
-    } catch (err) {
-      // Demo mock roster when offline
+      const res = await this.request<any>(`/api/v1/subscribers?${searchParams.toString()}`);
+      const rawList = Array.isArray(res?.data) ? res.data : [];
       return {
-        data: [
-          {
-            id: 'sub-001',
-            accountNumber: 'SUB-2026-0001',
-            firstName: 'Juan',
-            lastName: 'Dela Cruz',
-            phone: '09171234567',
-            email: 'juan@example.ph',
-            status: 'ACTIVE',
-            currentBalanceCentavos: 149950,
-            advancePaymentCentavos: 0,
-            primaryAddress: { addressLine1: 'Purok 4, Sayre Highway', barangay: 'Poblacion', city: 'Malaybalay' },
-            serviceAccounts: [
-              {
-                id: 'acc-001',
-                accountNumber: 'ACC-1001',
-                serviceType: 'INTERNET',
-                status: 'ACTIVE',
-                planName: 'Fiber Pro 50Mbps',
-                monthlyFeeCentavos: 149950,
-              },
-            ],
-          },
-          {
-            id: 'sub-002',
-            accountNumber: 'SUB-2026-0002',
-            firstName: 'Maria',
-            lastName: 'Clara',
-            phone: '09189876543',
-            email: 'maria@example.ph',
-            status: 'ACTIVE',
-            currentBalanceCentavos: 99900,
-            advancePaymentCentavos: 50000,
-            primaryAddress: { addressLine1: 'Block 2 Lot 12, Sunrise Village', barangay: 'Casisang', city: 'Malaybalay' },
-            serviceAccounts: [
-              {
-                id: 'acc-002',
-                accountNumber: 'ACC-1002',
-                serviceType: 'CABLE',
-                status: 'ACTIVE',
-                planName: 'Digital Cable Deluxe',
-                monthlyFeeCentavos: 99900,
-              },
-            ],
-          },
-          {
-            id: 'sub-003',
-            accountNumber: 'SUB-2026-0003',
-            firstName: 'Antonio',
-            lastName: 'Luna',
-            phone: '09205551212',
-            status: 'DELINQUENT',
-            currentBalanceCentavos: 299800,
-            advancePaymentCentavos: 0,
-            primaryAddress: { addressLine1: 'Km 5 Fortich St', barangay: 'Sumpong', city: 'Malaybalay' },
-            serviceAccounts: [
-              {
-                id: 'acc-003',
-                accountNumber: 'ACC-1003',
-                serviceType: 'BUNDLE',
-                status: 'DELINQUENT',
-                planName: 'Fiber + Cable Ultimate',
-                monthlyFeeCentavos: 149900,
-              },
-            ],
-          },
-        ],
-        pagination: { total: 3, page: 1, limit: 20 },
+        data: rawList.map(normalizeSubscriber),
+        pagination: res.pagination || { total: rawList.length, page: 1, limit: 20 },
+      };
+    } catch (err) {
+      let filtered = [...mockSubscribers];
+      if (params?.search) {
+        const q = params.search.toLowerCase();
+        filtered = filtered.filter(
+          (s) =>
+            s.firstName.toLowerCase().includes(q) ||
+            s.lastName.toLowerCase().includes(q) ||
+            s.accountNumber.toLowerCase().includes(q) ||
+            s.phone.includes(q)
+        );
+      }
+      if (params?.status) {
+        filtered = filtered.filter((s) => s.status === params.status);
+      }
+      return {
+        data: filtered,
+        pagination: { total: filtered.length, page: 1, limit: 20 },
       };
     }
   }
 
   public async getSubscriber(id: string): Promise<{ data: SubscriberRecord }> {
-    return this.request<{ data: SubscriberRecord }>(`/api/v1/subscribers/${id}`);
+    try {
+      const res = await this.request<{ data: any }>(`/api/v1/subscribers/${id}`);
+      return { data: normalizeSubscriber(res.data) };
+    } catch {
+      const found = mockSubscribers.find((s) => s.id === id);
+      if (found) return { data: found };
+      return { data: mockSubscribers[0] };
+    }
   }
 
   public async createSubscriber(data: any): Promise<{ data: SubscriberRecord }> {
+    const payload = {
+      accountNumber: data.accountNumber,
+      firstName: data.firstName,
+      middleName: data.middleName || null,
+      lastName: data.lastName,
+      businessName: data.businessName || data.companyName || null,
+      contactNumber: data.contactNumber || data.phone || '09171234567',
+      alternateContact: data.alternateContact || null,
+      email: data.email || null,
+      streetAddress: data.streetAddress || data.primaryAddress?.streetAddress || data.primaryAddress?.addressLine1 || data.addressLine1 || 'Purok 1',
+      barangay: data.barangay || data.primaryAddress?.barangay || 'Poblacion',
+      municipality: data.municipality || data.primaryAddress?.municipality || data.primaryAddress?.city || data.city || 'Malaybalay',
+      province: data.province || data.primaryAddress?.province || 'Bukidnon',
+      postalCode: data.postalCode || '8700',
+    };
+
     try {
-      return await this.request<{ data: SubscriberRecord }>('/api/v1/subscribers', {
+      const res = await this.request<{ data: any }>('/api/v1/subscribers', {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
+      return { data: normalizeSubscriber(res.data) };
     } catch {
-      return {
-        data: {
-          id: `sub-${Date.now()}`,
-          accountNumber: `SUB-${Date.now().toString().slice(-4)}`,
-          firstName: data.firstName || 'New',
-          lastName: data.lastName || 'Subscriber',
-          phone: data.phone || '',
-          email: data.email || '',
-          status: 'ACTIVE',
-          currentBalanceCentavos: 0,
-          advancePaymentCentavos: 0,
-          primaryAddress: { addressLine1: data.addressLine1 || '', barangay: data.barangay || 'Poblacion', city: 'Malaybalay' },
-          serviceAccounts: [],
+      const newSub = normalizeSubscriber({
+        id: `sub-${Date.now()}`,
+        accountNumber: `SUB-${Date.now().toString().slice(-4)}`,
+        firstName: payload.firstName || 'New',
+        lastName: payload.lastName || 'Subscriber',
+        contactNumber: payload.contactNumber,
+        email: payload.email,
+        status: 'ACTIVE',
+        currentBalanceCentavos: 0,
+        advanceCreditCentavos: 0,
+        primaryAddress: {
+          streetAddress: payload.streetAddress,
+          barangay: payload.barangay,
+          municipality: payload.municipality,
+          province: payload.province,
+          postalCode: payload.postalCode,
         },
-      };
+        serviceAccounts: [],
+      });
+      mockSubscribers.unshift(newSub);
+      return { data: newSub };
     }
   }
 
   public async updateSubscriber(id: string, data: any): Promise<{ data: SubscriberRecord }> {
+    const payload: any = {};
+    if (data.firstName) payload.firstName = data.firstName;
+    if (data.lastName) payload.lastName = data.lastName;
+    if (data.middleName !== undefined) payload.middleName = data.middleName;
+    if (data.businessName !== undefined) payload.businessName = data.businessName;
+    if (data.contactNumber || data.phone) payload.contactNumber = data.contactNumber || data.phone;
+    if (data.email !== undefined) payload.email = data.email;
+    if (data.status) payload.status = data.status;
+    if (data.streetAddress || data.addressLine1 || data.primaryAddress?.addressLine1) {
+      payload.streetAddress = data.streetAddress || data.addressLine1 || data.primaryAddress?.addressLine1;
+    }
+    if (data.barangay || data.primaryAddress?.barangay) {
+      payload.barangay = data.barangay || data.primaryAddress?.barangay;
+    }
+    if (data.municipality || data.city || data.primaryAddress?.city) {
+      payload.municipality = data.municipality || data.city || data.primaryAddress?.city;
+    }
+
     try {
-      return await this.request<{ data: SubscriberRecord }>(`/api/v1/subscribers/${id}`, {
+      const res = await this.request<{ data: any }>(`/api/v1/subscribers/${id}`, {
         method: 'PATCH',
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
+      return { data: normalizeSubscriber(res.data) };
     } catch {
-      return {
-        data: {
-          id,
-          accountNumber: 'SUB-2026-0001',
-          firstName: data.firstName || 'Juan',
-          lastName: data.lastName || 'Dela Cruz',
-          phone: data.phone || '09171234567',
-          email: data.email || 'juan@example.ph',
-          status: data.status || 'ACTIVE',
-          currentBalanceCentavos: 149950,
-          advancePaymentCentavos: 0,
-          primaryAddress: { addressLine1: data.addressLine1 || 'Purok 4', barangay: data.barangay || 'Poblacion', city: 'Malaybalay' },
-          serviceAccounts: [],
-        },
-      };
+      const existing = mockSubscribers.find((s) => s.id === id);
+      if (existing) {
+        if (payload.firstName) existing.firstName = payload.firstName;
+        if (payload.lastName) existing.lastName = payload.lastName;
+        if (payload.contactNumber) {
+          existing.phone = payload.contactNumber;
+          existing.contactNumber = payload.contactNumber;
+        }
+        if (payload.status) existing.status = payload.status;
+        if (existing.primaryAddress) {
+          if (payload.streetAddress) {
+            existing.primaryAddress.streetAddress = payload.streetAddress;
+            existing.primaryAddress.addressLine1 = payload.streetAddress;
+          }
+          if (payload.barangay) existing.primaryAddress.barangay = payload.barangay;
+          if (payload.municipality) {
+            existing.primaryAddress.municipality = payload.municipality;
+            existing.primaryAddress.city = payload.municipality;
+          }
+        }
+        return { data: existing };
+      }
+      return { data: normalizeSubscriber({ id, ...data }) };
     }
   }
 
@@ -321,25 +573,35 @@ class ApiClient {
     if (params?.status) q.set('status', params.status);
 
     try {
-      return await this.request(`/api/v1/invoices?${q.toString()}`);
-    } catch {
-      // Mock invoices for selected account
+      const res = await this.request<any>(`/api/v1/invoices?${q.toString()}`);
+      const rawInvoices = Array.isArray(res?.data) ? res.data : [];
       return {
-        data: [
-          {
-            id: 'inv-001',
-            invoiceNumber: 'INV-202608-0120',
-            serviceAccountId: params?.serviceAccountId || 'acc-001',
-            billingPeriodStart: '2026-08-01',
-            billingPeriodEnd: '2026-08-31',
-            issueDate: '2026-09-01',
-            dueDate: '2026-09-15',
-            totalDueCentavos: 149950,
-            remainingBalanceCentavos: 149950,
-            status: InvoiceStatus.UNPAID,
-          },
-        ],
-        pagination: { total: 1, page: 1, limit: 20 },
+        data: rawInvoices.map((inv: any) => ({
+          id: inv.id,
+          invoiceNumber: inv.invoiceNumber,
+          serviceAccountId: inv.serviceAccountId,
+          subscriberId: inv.subscriberId,
+          billingPeriodStart: inv.billingPeriodStart,
+          billingPeriodEnd: inv.billingPeriodEnd,
+          issueDate: inv.issueDate,
+          dueDate: inv.dueDate,
+          totalDueCentavos: inv.totalDueCentavos,
+          remainingBalanceCentavos: inv.remainingBalanceCentavos,
+          status: inv.status,
+        })),
+        pagination: res.pagination || { total: rawInvoices.length, page: 1, limit: 20 },
+      };
+    } catch {
+      let filtered = [...mockInvoices];
+      if (params?.subscriberId) {
+        filtered = filtered.filter((i) => i.subscriberId === params.subscriberId);
+      }
+      if (params?.status) {
+        filtered = filtered.filter((i) => i.status === params.status);
+      }
+      return {
+        data: filtered,
+        pagination: { total: filtered.length, page: 1, limit: 20 },
       };
     }
   }
@@ -371,6 +633,36 @@ class ApiClient {
         body: JSON.stringify(data),
       });
     } catch {
+      // In offline mode: allocate against mockInvoices for subscriber and update balance
+      const subInvoices = mockInvoices.filter(
+        (i) =>
+          i.subscriberId === data.subscriberId &&
+          (i.status === InvoiceStatus.UNPAID ||
+            i.status === InvoiceStatus.OVERDUE ||
+            i.status === InvoiceStatus.PARTIALLY_PAID)
+      );
+
+      let remainingPayment = data.amountCentavos;
+      for (const inv of subInvoices) {
+        if (remainingPayment <= 0) break;
+        const toPay = Math.min(inv.remainingBalanceCentavos, remainingPayment);
+        inv.remainingBalanceCentavos -= toPay;
+        inv.status = inv.remainingBalanceCentavos === 0 ? InvoiceStatus.PAID : InvoiceStatus.PARTIALLY_PAID;
+        remainingPayment -= toPay;
+      }
+
+      const targetSub = mockSubscribers.find((s) => s.id === data.subscriberId);
+      if (targetSub) {
+        targetSub.currentBalanceCentavos = Math.max(
+          0,
+          targetSub.currentBalanceCentavos - (data.amountCentavos - remainingPayment)
+        );
+        if (remainingPayment > 0) {
+          targetSub.advancePaymentCentavos = (targetSub.advancePaymentCentavos || 0) + remainingPayment;
+          targetSub.advanceCreditCentavos = targetSub.advancePaymentCentavos;
+        }
+      }
+
       return {
         success: true,
         data: {
@@ -417,7 +709,9 @@ class ApiClient {
   // 7. Collection Areas & Routes
   public async listAreas(): Promise<{ data: CollectionAreaRecord[] }> {
     try {
-      return await this.request('/api/v1/collections/areas');
+      const res = await this.request<any>('/api/v1/collections/areas');
+      const items = Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []);
+      return { data: items };
     } catch {
       return {
         data: [
@@ -432,7 +726,9 @@ class ApiClient {
   public async listRoutes(areaId?: string): Promise<{ data: CollectionRouteRecord[] }> {
     const q = areaId ? `?collectionAreaId=${areaId}` : '';
     try {
-      return await this.request(`/api/v1/collections/routes${q}`);
+      const res = await this.request<any>(`/api/v1/collections/routes${q}`);
+      const items = Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []);
+      return { data: items };
     } catch {
       return {
         data: [
@@ -446,7 +742,26 @@ class ApiClient {
 
   public async getAreaRouteSheet(areaId: string, overdueOnly = false): Promise<{ data: RouteSheetItem[] }> {
     try {
-      return await this.request(`/api/v1/collections/areas/${areaId}/route-sheet?overdueOnly=${overdueOnly}`);
+      const res = await this.request<any>(`/api/v1/collections/areas/${areaId}/route-sheet?overdueOnly=${overdueOnly}`);
+      const rawAccounts = res?.data?.accounts ?? (Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []));
+      const mapped: RouteSheetItem[] = rawAccounts.map((acc: any) => ({
+        serviceAccountId: acc.serviceAccountId || acc.id || '',
+        subscriberId: acc.subscriberId || '',
+        subscriberName: acc.subscriberName || '',
+        accountNumber: acc.subscriberAccountNumber || acc.serviceAccountNumber || acc.accountNumber || '',
+        address: acc.address || '',
+        barangay: acc.barangay || '',
+        contactNumber: acc.contactNumber || '',
+        planName: acc.servicePlanName || acc.planName || 'Standard Plan',
+        planFeeCentavos: acc.monthlyRateCentavos ?? acc.planFeeCentavos ?? 0,
+        status: acc.status || 'ACTIVE',
+        arrearsCentavos: acc.totalArrearsCentavos ?? acc.arrearsCentavos ?? 0,
+        daysOverdue: acc.openInvoiceCount > 0 ? (acc.daysOverdue ?? 30) : 0,
+        routeId: acc.collectionRouteId || acc.routeId,
+        collectionRouteId: acc.collectionRouteId || acc.routeId,
+        isDelinquent: (acc.totalArrearsCentavos ?? acc.arrearsCentavos ?? 0) > 0,
+      }));
+      return { data: mapped };
     } catch {
       return {
         data: [
@@ -491,7 +806,26 @@ class ApiClient {
 
   public async getRouteRouteSheet(routeId: string, overdueOnly = false): Promise<{ data: RouteSheetItem[] }> {
     try {
-      return await this.request(`/api/v1/collections/routes/${routeId}/route-sheet?overdueOnly=${overdueOnly}`);
+      const res = await this.request<any>(`/api/v1/collections/routes/${routeId}/route-sheet?overdueOnly=${overdueOnly}`);
+      const rawAccounts = res?.data?.accounts ?? (Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []));
+      const mapped: RouteSheetItem[] = rawAccounts.map((acc: any) => ({
+        serviceAccountId: acc.serviceAccountId || acc.id || '',
+        subscriberId: acc.subscriberId || '',
+        subscriberName: acc.subscriberName || '',
+        accountNumber: acc.subscriberAccountNumber || acc.serviceAccountNumber || acc.accountNumber || '',
+        address: acc.address || '',
+        barangay: acc.barangay || '',
+        contactNumber: acc.contactNumber || '',
+        planName: acc.servicePlanName || acc.planName || 'Standard Plan',
+        planFeeCentavos: acc.monthlyRateCentavos ?? acc.planFeeCentavos ?? 0,
+        status: acc.status || 'ACTIVE',
+        arrearsCentavos: acc.totalArrearsCentavos ?? acc.arrearsCentavos ?? 0,
+        daysOverdue: acc.openInvoiceCount > 0 ? (acc.daysOverdue ?? 30) : 0,
+        routeId: acc.collectionRouteId || routeId,
+        collectionRouteId: acc.collectionRouteId || routeId,
+        isDelinquent: (acc.totalArrearsCentavos ?? acc.arrearsCentavos ?? 0) > 0,
+      }));
+      return { data: mapped };
     } catch {
       return {
         data: [

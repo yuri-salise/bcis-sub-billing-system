@@ -463,6 +463,57 @@ export async function seedDatabase(): Promise<void> {
       .onConflictDoNothing();
   }
 
+  // 6.5 Seed Demo Billing Admin User
+  const billingAdminUsername = 'billing_admin';
+  const billingAdminPassword = 'Admin123!';
+  const adminRoleId = roleMap.get(UserRole.ADMIN);
+
+  if (adminRoleId) {
+    const existingBillingAdmin = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, billingAdminUsername))
+      .limit(1);
+
+    let billingAdminUserId: string;
+
+    if (existingBillingAdmin.length === 0) {
+      console.log(`[Seed] Creating demo Billing Admin: ${billingAdminUsername}`);
+      const passwordHash = await hashPassword(billingAdminPassword);
+      const [newBillingAdmin] = await db
+        .insert(users)
+        .values({
+          username: billingAdminUsername,
+          passwordHash,
+          fullName: 'BCIS Billing Administrator',
+          email: 'billing@bcis.local',
+          isActive: true,
+          failedLoginAttempts: 0,
+        })
+        .returning({ id: users.id });
+      billingAdminUserId = newBillingAdmin.id;
+    } else {
+      billingAdminUserId = existingBillingAdmin[0].id;
+      await db
+        .update(users)
+        .set({
+          isActive: true,
+          failedLoginAttempts: 0,
+          lockedUntil: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, billingAdminUserId));
+    }
+
+    await db
+      .insert(userRoles)
+      .values({
+        userId: billingAdminUserId,
+        roleId: adminRoleId,
+      })
+      .onConflictDoNothing();
+  }
+
   // 7. Seed Demo Technician User
   const techUsername = 'technician';
   const techPassword = 'Tech123!';

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { PaymentMethod, InvoiceStatus, UserRole } from '@bcis/shared-types';
 import { formatCurrency, parseCurrencyToCentavos, allocatePaymentFIFO, calculateDaysOverdue, getAgingBucket } from '@bcis/domain';
 import { apiClient } from '../src/api/client.js';
+import { canAccessWorkspace, getAllowedWorkspaces, getDefaultWorkspace, getRoleDisplayName } from '../src/auth/rbac.js';
 
 describe('Desktop Client & Role-Based Workspaces (Phase 8)', () => {
   beforeEach(() => {
@@ -110,6 +111,49 @@ describe('Desktop Client & Role-Based Workspaces (Phase 8)', () => {
       expect(plan.allocations[0].newStatus).toBe(InvoiceStatus.PAID);
       expect(plan.advanceCreditCentavos).toBe(50100); // ₱501.00 excess
     });
+
+    it('strictly ignores DRAFT and VOID status invoices during payment allocation preview', () => {
+      const mockInvoices = [
+        {
+          id: 'inv-draft',
+          invoiceNumber: 'INV-DRAFT-001',
+          dueDate: '2026-08-01',
+          createdAt: '2026-08-01',
+          status: InvoiceStatus.DRAFT,
+          totalDueCentavos: 100000,
+          allocatedCentavos: 0,
+          remainingBalanceCentavos: 100000,
+        },
+        {
+          id: 'inv-void',
+          invoiceNumber: 'INV-VOID-001',
+          dueDate: '2026-08-05',
+          createdAt: '2026-08-05',
+          status: InvoiceStatus.VOID,
+          totalDueCentavos: 50000,
+          allocatedCentavos: 0,
+          remainingBalanceCentavos: 50000,
+        },
+        {
+          id: 'inv-unpaid',
+          invoiceNumber: 'INV-POSTED-001',
+          dueDate: '2026-08-15',
+          createdAt: '2026-08-15',
+          status: InvoiceStatus.UNPAID,
+          totalDueCentavos: 100000,
+          allocatedCentavos: 0,
+          remainingBalanceCentavos: 100000,
+        },
+      ];
+
+      // Paying ₱1,500.00: only the posted unpaid invoice should be paid (₱1,000), remainder goes to advance credit
+      const plan = allocatePaymentFIFO(150000, mockInvoices);
+      expect(plan.allocations).toHaveLength(1);
+      expect(plan.allocations[0].invoiceNumber).toBe('INV-POSTED-001');
+      expect(plan.allocations[0].allocatedAmountCentavos).toBe(100000);
+      expect(plan.totalAllocatedCentavos).toBe(100000);
+      expect(plan.advanceCreditCentavos).toBe(50000);
+    });
   });
 
   describe('3. Official Receipt (OR) BIR Compliance Calculation', () => {
@@ -199,6 +243,142 @@ describe('Desktop Client & Role-Based Workspaces (Phase 8)', () => {
       expect(res.data).toBeDefined();
       expect(res.data.id).toBe('sub-001');
       expect(res.data.phone).toBe('09991234567');
+    });
+  });
+
+  describe('7. RBAC Matrix & Desktop Workspace Gating', () => {
+    it('permits Cashier ONLY in Cashier POS workspace and strictly denies other modules', () => {
+      const cashierRoles = [UserRole.CASHIER];
+
+      expect(canAccessWorkspace(cashierRoles, 'pos')).toBe(true);
+      expect(canAccessWorkspace(cashierRoles, 'billing')).toBe(false);
+      expect(canAccessWorkspace(cashierRoles, 'collections')).toBe(false);
+      expect(canAccessWorkspace(cashierRoles, 'tech')).toBe(false);
+      expect(canAccessWorkspace(cashierRoles, 'reports')).toBe(false);
+      expect(canAccessWorkspace(cashierRoles, 'settings')).toBe(false);
+
+      expect(getAllowedWorkspaces(cashierRoles)).toEqual(['pos']);
+      expect(getDefaultWorkspace(UserRole.CASHIER)).toBe('pos');
+    });
+
+    it('permits Technician ONLY in Service Orders workspace', () => {
+      const techRoles = [UserRole.TECHNICIAN];
+
+      expect(canAccessWorkspace(techRoles, 'tech')).toBe(true);
+      expect(canAccessWorkspace(techRoles, 'pos')).toBe(false);
+      expect(canAccessWorkspace(techRoles, 'billing')).toBe(false);
+      expect(canAccessWorkspace(techRoles, 'collections')).toBe(false);
+      expect(canAccessWorkspace(techRoles, 'reports')).toBe(false);
+      expect(canAccessWorkspace(techRoles, 'settings')).toBe(false);
+
+      expect(getAllowedWorkspaces(techRoles)).toEqual(['tech']);
+      expect(getDefaultWorkspace(UserRole.TECHNICIAN)).toBe('tech');
+    });
+
+    it('permits Collection Supervisor in collections and tech but denies pos and billing', () => {
+      const supervisorRoles = [UserRole.COLLECTION_SUPERVISOR];
+
+      expect(canAccessWorkspace(supervisorRoles, 'collections')).toBe(true);
+      expect(canAccessWorkspace(supervisorRoles, 'tech')).toBe(true);
+      expect(canAccessWorkspace(supervisorRoles, 'pos')).toBe(false);
+      expect(canAccessWorkspace(supervisorRoles, 'billing')).toBe(false);
+      expect(canAccessWorkspace(supervisorRoles, 'settings')).toBe(false);
+
+      expect(getDefaultWorkspace(UserRole.COLLECTION_SUPERVISOR)).toBe('collections');
+    });
+
+    it('permits Accounting in reports and collections but denies pos and settings', () => {
+      const accountingRoles = [UserRole.ACCOUNTING];
+
+      expect(canAccessWorkspace(accountingRoles, 'reports')).toBe(true);
+      expect(canAccessWorkspace(accountingRoles, 'collections')).toBe(true);
+      expect(canAccessWorkspace(accountingRoles, 'pos')).toBe(false);
+      expect(canAccessWorkspace(accountingRoles, 'billing')).toBe(false);
+      expect(canAccessWorkspace(accountingRoles, 'tech')).toBe(false);
+      expect(canAccessWorkspace(accountingRoles, 'settings')).toBe(false);
+
+      expect(getDefaultWorkspace(UserRole.ACCOUNTING)).toBe('reports');
+    });
+
+    it('permits Administrator across billing, collections, tech, reports, and pos', () => {
+      const adminRoles = [UserRole.ADMIN];
+
+      expect(canAccessWorkspace(adminRoles, 'billing')).toBe(true);
+      expect(canAccessWorkspace(adminRoles, 'collections')).toBe(true);
+      expect(canAccessWorkspace(adminRoles, 'tech')).toBe(true);
+      expect(canAccessWorkspace(adminRoles, 'reports')).toBe(true);
+      expect(canAccessWorkspace(adminRoles, 'pos')).toBe(true);
+      expect(canAccessWorkspace(adminRoles, 'settings')).toBe(true);
+
+      expect(getDefaultWorkspace(UserRole.ADMIN)).toBe('billing');
+    });
+
+    it('permits Super Admin unrestricted access to all 6 workspaces', () => {
+      const superAdminRoles = [UserRole.SUPER_ADMIN];
+
+      const allWorkspaces = ['pos', 'billing', 'collections', 'tech', 'reports', 'settings'] as const;
+      allWorkspaces.forEach((view) => {
+        expect(canAccessWorkspace(superAdminRoles, view)).toBe(true);
+      });
+
+      expect(getAllowedWorkspaces(superAdminRoles)).toHaveLength(6);
+    });
+
+    it('provides human-readable display names for all system roles', () => {
+      expect(getRoleDisplayName(UserRole.CASHIER)).toBe('Cashier Counter');
+      expect(getRoleDisplayName(UserRole.ADMIN)).toBe('Administrator');
+      expect(getRoleDisplayName(UserRole.SUPER_ADMIN)).toBe('Owner / Super Admin');
+      expect(getRoleDisplayName(UserRole.COLLECTION_SUPERVISOR)).toBe('Collection Supervisor');
+      expect(getRoleDisplayName(UserRole.ACCOUNTING)).toBe('Accounting / Auditor');
+      expect(getRoleDisplayName(UserRole.TECHNICIAN)).toBe('Field Technician');
+    });
+  });
+
+  describe('8. Strict Offline Demo Accounts & Role Isolation', () => {
+    it('logs in cashier with strictly Cashier role and without wildcard permissions', async () => {
+      const res = await apiClient.login('cashier', 'Cashier123!');
+      expect(res.user.roles).toEqual([UserRole.CASHIER]);
+      expect(res.user.roles).not.toContain(UserRole.SUPER_ADMIN);
+      expect(res.user.permissions).not.toContain('*');
+      expect(res.user.permissions).toContain('payment.create');
+      expect(res.user.permissions).toContain('receipt.view');
+    });
+
+    it('logs in admin, supervisor, tech, and accounting with accurate role mappings', async () => {
+      const adminRes = await apiClient.login('admin', 'Admin123!');
+      expect(adminRes.user.roles).toContain(UserRole.SUPER_ADMIN);
+
+      const billingAdminRes = await apiClient.login('billing_admin', 'Admin123!');
+      expect(billingAdminRes.user.roles).toEqual([UserRole.ADMIN]);
+
+      const techRes = await apiClient.login('tech', 'Tech123!');
+      expect(techRes.user.roles).toEqual([UserRole.TECHNICIAN]);
+
+      const collRes = await apiClient.login('collector', 'Coll123!');
+      expect(collRes.user.roles).toEqual([UserRole.COLLECTION_SUPERVISOR]);
+
+      const acctRes = await apiClient.login('accounting', 'Acct123!');
+      expect(acctRes.user.roles).toEqual([UserRole.ACCOUNTING]);
+
+      const superRes = await apiClient.login('superadmin', 'Super123!');
+      expect(superRes.user.roles).toEqual([UserRole.SUPER_ADMIN]);
+      expect(superRes.user.permissions).toContain('*');
+    });
+
+    it('verifies quick test role account switching maps to accurate permissions and isolates workspaces', async () => {
+      const quickTestAccounts: Array<{ role: UserRole; expectedWorkspaces: string[] }> = [
+        { role: UserRole.CASHIER, expectedWorkspaces: ['pos'] },
+        { role: UserRole.TECHNICIAN, expectedWorkspaces: ['tech'] },
+        { role: UserRole.COLLECTION_SUPERVISOR, expectedWorkspaces: ['collections', 'tech'] },
+        { role: UserRole.ACCOUNTING, expectedWorkspaces: ['reports', 'collections'] },
+        { role: UserRole.ADMIN, expectedWorkspaces: ['pos', 'billing', 'collections', 'tech', 'reports', 'settings'] },
+        { role: UserRole.SUPER_ADMIN, expectedWorkspaces: ['pos', 'billing', 'collections', 'tech', 'reports', 'settings'] },
+      ];
+
+      for (const account of quickTestAccounts) {
+        const allowed = getAllowedWorkspaces(account.role);
+        expect(allowed.sort()).toEqual(account.expectedWorkspaces.sort());
+      }
     });
   });
 });

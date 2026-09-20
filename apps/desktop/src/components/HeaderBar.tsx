@@ -2,24 +2,25 @@ import React from 'react';
 import { UserRole } from '@bcis/shared-types';
 import { useAuth } from '../state/AuthContext.js';
 import { useConfig } from '../state/ConfigContext.js';
+import { getRoleDisplayName } from '../auth/rbac.js';
+import { IconLock, IconLogOut } from './icons/index.js';
 
 interface HeaderBarProps {
   onOpenSettings?: () => void;
 }
 
 export const HeaderBar: React.FC<HeaderBarProps> = ({ onOpenSettings }) => {
-  const { user, activeRole, setActiveRole, lockScreen, logout } = useAuth();
+  const { user, activeRole, switchTestAccount, lockScreen, logout } = useAuth();
   const { isOnline, latencyMs, printerConfig } = useConfig();
 
-  const roleLabels: Record<UserRole, string> = {
-    [UserRole.SUPER_ADMIN]: 'Owner / Super Admin',
-    [UserRole.ADMIN]: 'Administrator',
-    [UserRole.CASHIER]: 'Cashier Counter',
-    [UserRole.COLLECTION_SUPERVISOR]: 'Collection Supervisor',
-    [UserRole.ACCOUNTING]: 'Accounting / Auditor',
-    [UserRole.TECHNICIAN]: 'Field Technician',
-    [UserRole.VIEWER]: 'Read-Only Viewer',
-  };
+  const testRoles: UserRole[] = [
+    UserRole.CASHIER,
+    UserRole.TECHNICIAN,
+    UserRole.COLLECTION_SUPERVISOR,
+    UserRole.ACCOUNTING,
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+  ];
 
   return (
     <header
@@ -121,13 +122,14 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ onOpenSettings }) => {
       </div>
 
       {/* Right: Role Switcher, Screen Lock & User Profile */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        {/* Role Selector */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+        {/* Role Display / Quick Account Switcher for Testing */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <label style={{ fontSize: '12px', color: '#94A3B8' }}>Role:</label>
+          <span style={{ fontSize: '12px', color: '#94A3B8' }}>Role:</span>
           <select
             value={activeRole}
-            onChange={(e) => setActiveRole(e.target.value as UserRole)}
+            onChange={(e) => switchTestAccount(e.target.value as UserRole)}
+            title="Quick switch account & role for testing"
             style={{
               padding: '4px 8px',
               borderRadius: '6px',
@@ -137,11 +139,12 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ onOpenSettings }) => {
               fontSize: '12px',
               cursor: 'pointer',
               outline: 'none',
+              fontWeight: 500,
             }}
           >
-            {Object.entries(roleLabels).map(([role, label]) => (
+            {testRoles.map((role) => (
               <option key={role} value={role} style={{ background: '#0F172A', color: '#FFF' }}>
-                {label}
+                {getRoleDisplayName(role)}
               </option>
             ))}
           </select>
@@ -164,12 +167,12 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ onOpenSettings }) => {
             backgroundColor: 'rgba(255, 255, 255, 0.08)',
             color: '#FFFFFF',
             border: '1px solid rgba(255, 255, 255, 0.15)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
           }}
         >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-          </svg>
+          <IconLock size={13} strokeWidth={2} />
           <span>Lock</span>
         </button>
 
@@ -184,9 +187,13 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ onOpenSettings }) => {
             color: '#94A3B8',
             border: 'none',
             cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
           }}
         >
-          Sign Out
+          <IconLogOut size={13} strokeWidth={2} />
+          <span>Sign Out</span>
         </button>
       </div>
     </header>

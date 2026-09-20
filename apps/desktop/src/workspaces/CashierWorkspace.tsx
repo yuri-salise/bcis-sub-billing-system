@@ -1,10 +1,20 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { PaymentMethod } from '@bcis/shared-types';
+import { PaymentMethod, InvoiceStatus } from '@bcis/shared-types';
 import { formatCurrency } from '@bcis/domain';
 import { SubscriberRecord, InvoiceRecord, PaymentReceipt } from '../api/types.js';
 import { apiClient } from '../api/client.js';
 import { PaymentModal } from '../components/PaymentModal.js';
 import { ReceiptModal } from '../components/ReceiptModal.js';
+import {
+  IconSearch,
+  IconCreditCard,
+  IconMapPin,
+  IconBanknote,
+  IconSmartphone,
+  IconBuilding,
+  IconReceipt,
+  IconCheckCircle,
+} from '../components/icons/index.js';
 
 export const CashierWorkspace: React.FC = () => {
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -68,9 +78,20 @@ export const CashierWorkspace: React.FC = () => {
     fetchInvoices();
   }, [selectedSubscriber]);
 
-  const totalOutstandingCentavos = useMemo(() => {
-    return invoices.reduce((acc, inv) => acc + inv.remainingBalanceCentavos, 0);
+  // Only posted, legally payable invoices (UNPAID, PARTIALLY_PAID, OVERDUE) can receive cashier payments.
+  // DRAFT invoices are unposted work-in-progress and strictly cannot receive payments.
+  const payableInvoices = useMemo(() => {
+    return invoices.filter(
+      (inv) =>
+        inv.status === InvoiceStatus.UNPAID ||
+        inv.status === InvoiceStatus.PARTIALLY_PAID ||
+        inv.status === InvoiceStatus.OVERDUE
+    );
   }, [invoices]);
+
+  const totalOutstandingCentavos = useMemo(() => {
+    return payableInvoices.reduce((acc, inv) => acc + inv.remainingBalanceCentavos, 0);
+  }, [payableInvoices]);
 
   // Hotkey listener for '/' search focus and F1 payment modal
   useEffect(() => {
@@ -111,9 +132,11 @@ export const CashierWorkspace: React.FC = () => {
       };
     });
 
-    // Refresh invoices
+    // Refresh invoices and subscriber record immediately
     if (selectedSubscriber) {
       apiClient.listInvoices({ subscriberId: selectedSubscriber.id }).then((r) => setInvoices(r.data)).catch(() => {});
+      apiClient.getSubscriber(selectedSubscriber.id).then((r) => setSelectedSubscriber(r.data)).catch(() => {});
+      apiClient.listSubscribers().then((r) => setSubscribers(r.data)).catch(() => {});
     }
   };
 
@@ -124,11 +147,8 @@ export const CashierWorkspace: React.FC = () => {
       {/* Top Search & Action Bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
         <div style={{ position: 'relative', flex: 1, maxWidth: '540px' }}>
-          <span style={{ position: 'absolute', left: '12px', top: '10px', color: 'var(--text-tertiary)' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
+          <span style={{ position: 'absolute', left: '12px', top: '11px', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center' }}>
+            <IconSearch size={16} strokeWidth={2} />
           </span>
           <input
             ref={searchInputRef}
@@ -149,10 +169,7 @@ export const CashierWorkspace: React.FC = () => {
             onClick={() => setIsPayModalOpen(true)}
             style={{ height: '38px', padding: '0 20px', fontSize: '14px' }}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="2" y="4" width="20" height="16" rx="2" />
-              <line x1="2" y1="10" x2="22" y2="10" />
-            </svg>
+            <IconCreditCard size={16} strokeWidth={2} />
             <span>Accept Payment (F1)</span>
           </button>
         </div>
@@ -193,7 +210,7 @@ export const CashierWorkspace: React.FC = () => {
                     </span>
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }} className="font-mono">
-                    {sub.accountNumber} • {sub.phone}
+                    {sub.accountNumber} {sub.phone ? `• ${sub.phone}` : sub.contactNumber ? `• ${sub.contactNumber}` : ''}
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px' }}>
                     {sub.primaryAddress?.barangay || 'Malaybalay'}
@@ -218,8 +235,15 @@ export const CashierWorkspace: React.FC = () => {
                       </h2>
                       <span className="badge badge-primary font-mono">{selectedSubscriber.accountNumber}</span>
                     </div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                      📍 {selectedSubscriber.primaryAddress?.addressLine1}, {selectedSubscriber.primaryAddress?.barangay}, {selectedSubscriber.primaryAddress?.city}
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <IconMapPin size={13} strokeWidth={2} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
+                      <span>
+                        {[
+                          selectedSubscriber.primaryAddress?.addressLine1 || selectedSubscriber.primaryAddress?.streetAddress,
+                          selectedSubscriber.primaryAddress?.barangay,
+                          selectedSubscriber.primaryAddress?.city || selectedSubscriber.primaryAddress?.municipality || 'Malaybalay',
+                        ].filter(Boolean).join(', ')}
+                      </span>
                     </div>
                   </div>
 
@@ -237,6 +261,11 @@ export const CashierWorkspace: React.FC = () => {
                     >
                       {formatCurrency(totalOutstandingCentavos)}
                     </div>
+                    {((selectedSubscriber.advanceCreditCentavos || selectedSubscriber.advancePaymentCentavos || 0) > 0) && (
+                      <div style={{ fontSize: '11px', color: '#059669', marginTop: '2px', fontWeight: 600 }}>
+                        Advance Credit: {formatCurrency(selectedSubscriber.advanceCreditCentavos || selectedSubscriber.advancePaymentCentavos || 0)}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -312,9 +341,23 @@ export const CashierWorkspace: React.FC = () => {
                               {formatCurrency(inv.remainingBalanceCentavos)}
                             </td>
                             <td style={{ padding: '10px 6px', textAlign: 'center' }}>
-                              <span className={`badge ${inv.status === 'PAID' ? 'badge-success' : 'badge-danger'}`}>
-                                {inv.status}
-                              </span>
+                              {inv.status === 'DRAFT' ? (
+                                <span className="badge badge-neutral" title="Unposted Draft — Cannot receive payment until posted">
+                                  DRAFT (Unposted)
+                                </span>
+                              ) : inv.status === 'VOID' ? (
+                                <span className="badge badge-neutral" title="Invalidated / Voided Invoice">
+                                  VOID
+                                </span>
+                              ) : inv.status === 'PAID' ? (
+                                <span className="badge badge-success">PAID</span>
+                              ) : inv.status === 'OVERDUE' ? (
+                                <span className="badge badge-danger">OVERDUE</span>
+                              ) : inv.status === 'PARTIALLY_PAID' ? (
+                                <span className="badge badge-warning">PARTIAL</span>
+                              ) : (
+                                <span className="badge badge-danger">{inv.status}</span>
+                              )}
                             </td>
                           </tr>
                         ))
@@ -347,20 +390,32 @@ export const CashierWorkspace: React.FC = () => {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>💵 Cash in Drawer:</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <IconBanknote size={14} strokeWidth={2} style={{ color: '#059669' }} />
+                  <span>Cash in Drawer:</span>
+                </span>
                 <span className="tabular-nums font-semibold">{formatCurrency(shiftTotals.cashCentavos)}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>📱 GCash Verified:</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <IconSmartphone size={14} strokeWidth={2} style={{ color: '#0071E3' }} />
+                  <span>GCash Verified:</span>
+                </span>
                 <span className="tabular-nums font-semibold">{formatCurrency(shiftTotals.gcashCentavos)}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>🏦 Bank Transfers:</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <IconBuilding size={14} strokeWidth={2} style={{ color: '#7C3AED' }} />
+                  <span>Bank Transfers:</span>
+                </span>
                 <span className="tabular-nums font-semibold">{formatCurrency(shiftTotals.bankCentavos)}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>🧾 Checks Received:</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <IconReceipt size={14} strokeWidth={2} style={{ color: '#D97706' }} />
+                  <span>Checks Received:</span>
+                </span>
                 <span className="tabular-nums font-semibold">{formatCurrency(shiftTotals.checkCentavos)}</span>
               </div>
 
@@ -389,8 +444,9 @@ export const CashierWorkspace: React.FC = () => {
           {/* Quick Receipt Preview trigger */}
           {lastReceipt && (
             <div className="apple-card" style={{ padding: '16px', backgroundColor: '#ECFDF5', border: '1px solid #A7F3D0' }}>
-              <div style={{ fontSize: '12px', fontWeight: 600, color: '#065F46', marginBottom: '6px' }}>
-                ✓ Last Transaction Receipt Ready
+              <div style={{ fontSize: '12px', fontWeight: 600, color: '#065F46', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <IconCheckCircle size={14} strokeWidth={2} />
+                <span>Last Transaction Receipt Ready</span>
               </div>
               <div style={{ fontSize: '12px', color: '#047857' }} className="font-mono">
                 {lastReceipt.receiptNumber} ({formatCurrency(lastReceipt.totalAmountCentavos)})
@@ -408,11 +464,11 @@ export const CashierWorkspace: React.FC = () => {
         </div>
       </div>
 
-      {/* Payment Modal */}
+      {/* Payment Modal (Strictly payable invoices only) */}
       {isPayModalOpen && selectedSubscriber && (
         <PaymentModal
           subscriber={selectedSubscriber}
-          invoices={invoices}
+          invoices={payableInvoices}
           onClose={() => setIsPayModalOpen(false)}
           onPaymentSuccess={handlePaymentCompleted}
         />

@@ -19,6 +19,10 @@ let printerConfig = {
   stationId: 'COUNTER-PC-01',
 };
 
+if (app) {
+  app.name = 'BCIS-Billing-System';
+}
+
 export function createMainWindow(): BrowserWindow {
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -33,6 +37,13 @@ export function createMainWindow(): BrowserWindow {
       sandbox: true,
       preload: path.join(__dirname, '../preload/preload.js'),
     },
+  });
+
+  mainWindow.webContents.on('console-message', (event: any, ...rest: any[]) => {
+    const message = event && typeof event === 'object' && 'message' in event
+      ? event.message
+      : (rest[1] ?? event);
+    console.log(`[Renderer] ${message}`);
   });
 
   const indexPath = path.join(__dirname, '../../index.html');

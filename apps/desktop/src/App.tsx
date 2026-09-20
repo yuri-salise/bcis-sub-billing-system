@@ -4,41 +4,38 @@ import { ConfigProvider } from './state/ConfigContext.js';
 import { HeaderBar } from './components/HeaderBar.js';
 import { SidebarNav, WorkspaceView } from './components/SidebarNav.js';
 import { LockOverlay } from './components/LockOverlay.js';
+import { AccessDeniedView } from './components/AccessDeniedView.js';
+import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { CashierWorkspace } from './workspaces/CashierWorkspace.js';
 import { BillingAdminWorkspace } from './workspaces/BillingAdminWorkspace.js';
 import { CollectionsWorkspace } from './workspaces/CollectionsWorkspace.js';
 import { ServiceOrdersWorkspace } from './workspaces/ServiceOrdersWorkspace.js';
 import { ReportsWorkspace } from './workspaces/ReportsWorkspace.js';
 import { SettingsWorkspace } from './workspaces/SettingsWorkspace.js';
-import { UserRole } from '@bcis/shared-types';
+import { canAccessWorkspace, getDefaultWorkspace, getAllowedWorkspaces } from './auth/rbac.js';
 
 const MainLayout: React.FC = () => {
-  const [currentView, setCurrentView] = useState<WorkspaceView>('pos');
   const { lockScreen, activeRole } = useAuth();
+  const [currentView, setCurrentView] = useState<WorkspaceView>(() => getDefaultWorkspace(activeRole));
 
-  // Automatically adapt default workspace view based on active role
+  // Automatically adapt workspace view whenever active role changes
   useEffect(() => {
-    switch (activeRole) {
-      case UserRole.CASHIER:
-        setCurrentView('pos');
-        break;
-      case UserRole.ADMIN:
-      case UserRole.SUPER_ADMIN:
-        // Keeps user choice or defaults to pos
-        break;
-      case UserRole.COLLECTION_SUPERVISOR:
-        setCurrentView('collections');
-        break;
-      case UserRole.TECHNICIAN:
-        setCurrentView('tech');
-        break;
-      case UserRole.ACCOUNTING:
-        setCurrentView('reports');
-        break;
+    if (!canAccessWorkspace(activeRole, currentView)) {
+      setCurrentView(getDefaultWorkspace(activeRole));
     }
   }, [activeRole]);
 
-  // Global Keyboard Shortcuts (Apple macOS style)
+  // Safe navigation function checking RBAC clearance
+  const navigateToView = (targetView: WorkspaceView) => {
+    if (canAccessWorkspace(activeRole, targetView)) {
+      setCurrentView(targetView);
+    } else {
+      // If unauthorized, still allow setting currentView so AccessDeniedView is explicitly displayed
+      setCurrentView(targetView);
+    }
+  };
+
+  // Global Keyboard Shortcuts (Hotkeys mapped to permitted workspaces)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ctrl+L or Cmd+L -> Lock Workstation
@@ -47,35 +44,52 @@ const MainLayout: React.FC = () => {
         lockScreen();
       }
 
-      // F1 through F6 -> Fast workspace switching
-      if (e.key === 'F1') { e.preventDefault(); setCurrentView('pos'); }
-      if (e.key === 'F2') { e.preventDefault(); setCurrentView('billing'); }
-      if (e.key === 'F3') { e.preventDefault(); setCurrentView('collections'); }
-      if (e.key === 'F4') { e.preventDefault(); setCurrentView('tech'); }
-      if (e.key === 'F5') { e.preventDefault(); setCurrentView('reports'); }
-      if (e.key === 'F6') { e.preventDefault(); setCurrentView('settings'); }
+      // F1 through F6 -> Fast workspace switching mapped to user's permitted views
+      const allowedViews = getAllowedWorkspaces(activeRole);
+      if (e.key === 'F1' && allowedViews.length > 0) { e.preventDefault(); setCurrentView(allowedViews[0]); }
+      if (e.key === 'F2' && allowedViews.length > 1) { e.preventDefault(); setCurrentView(allowedViews[1]); }
+      if (e.key === 'F3' && allowedViews.length > 2) { e.preventDefault(); setCurrentView(allowedViews[2]); }
+      if (e.key === 'F4' && allowedViews.length > 3) { e.preventDefault(); setCurrentView(allowedViews[3]); }
+      if (e.key === 'F5' && allowedViews.length > 4) { e.preventDefault(); setCurrentView(allowedViews[4]); }
+      if (e.key === 'F6' && allowedViews.length > 5) { e.preventDefault(); setCurrentView(allowedViews[5]); }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [lockScreen]);
+  }, [lockScreen, activeRole]);
+
+  const isAuthorized = canAccessWorkspace(activeRole, currentView);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden' }}>
-      {/* Apple Translucent Navigation Bar */}
-      <HeaderBar onOpenSettings={() => setCurrentView('settings')} />
+      {/* Header Navigation Bar */}
+      <HeaderBar onOpenSettings={() => navigateToView('settings')} />
 
       {/* Main Body Split: Left Sidebar & Right Workspace Canvas */}
       <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-        <SidebarNav currentView={currentView} onSelectView={setCurrentView} />
+        <SidebarNav
+          currentView={currentView}
+          onSelectView={navigateToView}
+          activeRole={activeRole}
+        />
 
         <main style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, backgroundColor: 'var(--bg-app)', overflow: 'hidden' }}>
-          {currentView === 'pos' && <CashierWorkspace />}
-          {currentView === 'billing' && <BillingAdminWorkspace />}
-          {currentView === 'collections' && <CollectionsWorkspace />}
-          {currentView === 'tech' && <ServiceOrdersWorkspace />}
-          {currentView === 'reports' && <ReportsWorkspace />}
-          {currentView === 'settings' && <SettingsWorkspace />}
+          {!isAuthorized ? (
+            <AccessDeniedView
+              view={currentView}
+              activeRole={activeRole}
+              onReturnToAllowed={() => setCurrentView(getDefaultWorkspace(activeRole))}
+            />
+          ) : (
+            <ErrorBoundary key={currentView} onReset={() => setCurrentView(getDefaultWorkspace(activeRole))}>
+              {currentView === 'pos' && <CashierWorkspace />}
+              {currentView === 'billing' && <BillingAdminWorkspace />}
+              {currentView === 'collections' && <CollectionsWorkspace />}
+              {currentView === 'tech' && <ServiceOrdersWorkspace />}
+              {currentView === 'reports' && <ReportsWorkspace />}
+              {currentView === 'settings' && <SettingsWorkspace />}
+            </ErrorBoundary>
+          )}
         </main>
       </div>
 

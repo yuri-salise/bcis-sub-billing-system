@@ -21,17 +21,25 @@ export interface SubscriberRecord {
   accountNumber: string;
   firstName: string;
   lastName: string;
+  middleName?: string | null;
   companyName?: string | null;
+  businessName?: string | null;
   status: string;
   email?: string | null;
   phone: string;
+  contactNumber?: string;
   currentBalanceCentavos: number;
   advancePaymentCentavos: number;
+  advanceCreditCentavos?: number;
   serviceAccounts?: ServiceAccountRecord[];
   primaryAddress?: {
-    addressLine1: string;
+    addressLine1?: string;
+    streetAddress?: string;
     barangay: string;
-    city: string;
+    city?: string;
+    municipality?: string;
+    province?: string;
+    postalCode?: string;
   };
 }
 

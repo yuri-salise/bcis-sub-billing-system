@@ -4,6 +4,14 @@ import { formatCurrency, parseCurrencyToCentavos, allocatePaymentFIFO } from '@b
 import { SubscriberRecord, InvoiceRecord, PaymentReceipt } from '../api/types.js';
 import { apiClient } from '../api/client.js';
 import { useAuth } from '../state/AuthContext.js';
+import {
+  IconX,
+  IconBanknote,
+  IconSmartphone,
+  IconBuilding,
+  IconReceipt,
+  IconAlertTriangle,
+} from './icons/index.js';
 
 interface PaymentModalProps {
   subscriber: SubscriberRecord;
@@ -20,10 +28,25 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 }) => {
   const { user } = useAuth();
 
-  // Outstanding total due from unpaid invoices
-  const totalBalanceCentavos = useMemo(() => {
-    return invoices.reduce((acc, inv) => acc + inv.remainingBalanceCentavos, 0);
+  // Filter for strictly payable invoices (UNPAID, PARTIALLY_PAID, OVERDUE)
+  // DRAFT invoices are unposted work-in-progress and VOID invoices are invalidated.
+  const payableInvoices = useMemo(() => {
+    return invoices.filter(
+      (inv) =>
+        inv.status === InvoiceStatus.UNPAID ||
+        inv.status === InvoiceStatus.PARTIALLY_PAID ||
+        inv.status === InvoiceStatus.OVERDUE
+    );
   }, [invoices]);
+
+  const hasDraftInvoices = useMemo(() => {
+    return invoices.some((inv) => inv.status === InvoiceStatus.DRAFT);
+  }, [invoices]);
+
+  // Outstanding total due from strictly payable invoices
+  const totalBalanceCentavos = useMemo(() => {
+    return payableInvoices.reduce((acc, inv) => acc + inv.remainingBalanceCentavos, 0);
+  }, [payableInvoices]);
 
   const defaultPayAmountPesos = (totalBalanceCentavos / 100).toFixed(2);
   const [paymentAmountStr, setPaymentAmountStr] = useState<string>(defaultPayAmountPesos);
@@ -59,13 +82,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   // Real-time FIFO Allocation Preview using domain function!
   const allocationPlan = useMemo(() => {
-    if (paymentAmountCentavos <= 0 || invoices.length === 0) return null;
+    if (paymentAmountCentavos <= 0) return null;
 
-    const allocatableInvoices = invoices.map((inv) => ({
+    const allocatableInvoices = payableInvoices.map((inv) => ({
       id: inv.id,
       invoiceNumber: inv.invoiceNumber,
       dueDate: inv.dueDate,
       createdAt: inv.issueDate || new Date().toISOString(),
+      status: inv.status,
       totalDueCentavos: inv.totalDueCentavos,
       allocatedCentavos: inv.totalDueCentavos - inv.remainingBalanceCentavos,
       remainingBalanceCentavos: inv.remainingBalanceCentavos,
@@ -76,7 +100,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     } catch {
       return null;
     }
-  }, [paymentAmountCentavos, invoices]);
+  }, [paymentAmountCentavos, payableInvoices]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -185,9 +209,19 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '18px' }}
+            style={{
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+              color: 'var(--text-tertiary)',
+              padding: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              borderRadius: '4px',
+            }}
+            title="Close modal"
           >
-            ✕
+            <IconX size={18} strokeWidth={2} />
           </button>
         </div>
 
@@ -212,18 +246,58 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   {formatCurrency(totalBalanceCentavos)}
                 </div>
               </div>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => {
-                  setPaymentAmountStr((totalBalanceCentavos / 100).toFixed(2));
-                  setTenderedStr((totalBalanceCentavos / 100).toFixed(2));
-                }}
-                style={{ fontSize: '11px', padding: '4px 8px' }}
-              >
-                Pay Exact Total
-              </button>
+              {totalBalanceCentavos > 0 && (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    setPaymentAmountStr((totalBalanceCentavos / 100).toFixed(2));
+                    setTenderedStr((totalBalanceCentavos / 100).toFixed(2));
+                  }}
+                  style={{ fontSize: '11px', padding: '4px 8px' }}
+                >
+                  Pay Exact Total
+                </button>
+              )}
             </div>
+
+            {/* Unposted Draft Invoices Alert */}
+            {hasDraftInvoices && (
+              <div
+                style={{
+                  backgroundColor: '#FFFBEB',
+                  border: '1px solid #FDE68A',
+                  borderRadius: '8px',
+                  padding: '10px 14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  fontSize: '12px',
+                  color: '#92400E',
+                }}
+              >
+                <IconAlertTriangle size={16} strokeWidth={2} style={{ flexShrink: 0, color: '#D97706' }} />
+                <span>
+                  <strong>Unposted Drafts Excluded:</strong> Invoices in DRAFT status are unposted and cannot receive payment until finalized by billing.
+                </span>
+              </div>
+            )}
+
+            {/* Zero Balance Info */}
+            {payableInvoices.length === 0 && (
+              <div
+                style={{
+                  backgroundColor: '#F0FDF4',
+                  border: '1px solid #BBF7D0',
+                  borderRadius: '8px',
+                  padding: '10px 14px',
+                  fontSize: '12px',
+                  color: '#166534',
+                }}
+              >
+                <strong>No posted receivables due.</strong> Any payment accepted will be credited as <strong>Advance Credit</strong> on this subscriber's account.
+              </div>
+            )}
 
             {/* Tender Method Selector */}
             <div>
@@ -232,10 +306,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
                 {[
-                  { id: PaymentMethod.CASH, label: 'Cash' },
-                  { id: PaymentMethod.GCASH, label: 'GCash' },
-                  { id: PaymentMethod.BANK_TRANSFER, label: 'Bank Transfer' },
-                  { id: PaymentMethod.CHECK, label: 'Check' },
+                  { id: PaymentMethod.CASH, label: 'Cash', icon: <IconBanknote size={15} strokeWidth={2} /> },
+                  { id: PaymentMethod.GCASH, label: 'GCash', icon: <IconSmartphone size={15} strokeWidth={2} /> },
+                  { id: PaymentMethod.BANK_TRANSFER, label: 'Bank Transfer', icon: <IconBuilding size={15} strokeWidth={2} /> },
+                  { id: PaymentMethod.CHECK, label: 'Check', icon: <IconReceipt size={15} strokeWidth={2} /> },
                 ].map((m) => {
                   const isSelected = tenderMethod === m.id;
                   return (
@@ -252,10 +326,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                         color: isSelected ? '#0071E3' : 'var(--text-primary)',
                         fontWeight: isSelected ? 600 : 400,
                         fontSize: '12px',
-                        textAlign: 'center',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
                       }}
                     >
-                      {m.label}
+                      {m.icon}
+                      <span>{m.label}</span>
                     </button>
                   );
                 })}
