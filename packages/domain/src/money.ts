@@ -44,7 +44,11 @@ export function parseCurrencyToCentavos(value: string | number): number {
  * Formats integer centavos to a standardized Philippine Peso currency string.
  * Example: 99900 => "₱999.00", 149950 => "₱1,499.50"
  */
-export function formatCurrency(centavos: number): string {
+export function formatCurrency(centavos?: number | null): string {
+  if (centavos === undefined || centavos === null) {
+    return '₱0.00';
+  }
+
   if (!Number.isInteger(centavos)) {
     throw new Error(`formatCurrency requires an integer centavo count; received ${centavos}`);
   }

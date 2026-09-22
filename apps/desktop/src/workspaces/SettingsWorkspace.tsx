@@ -52,9 +52,9 @@ export const SettingsWorkspace: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px', flex: 1, overflowY: 'auto' }}>
+    <div className="workspace-animate-enter" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px', flex: 1, overflowY: 'auto' }}>
       <div>
-        <h2 style={{ fontSize: '18px', fontWeight: 600 }}>LAN Settings & Hardware Configuration</h2>
+        <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>LAN Settings & Hardware Configuration</h2>
         <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
           Configure multi-client LAN server endpoint, workstation ID, and thermal receipt printers.
         </div>
@@ -62,7 +62,7 @@ export const SettingsWorkspace: React.FC = () => {
 
       {/* LAN Fastify Server Connection Card */}
       <div className="apple-card" style={{ padding: '20px' }}>
-        <h3 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '4px' }}>Fastify LAN Server Endpoint</h3>
+        <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>Fastify LAN Server Endpoint</h3>
         <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
           Connect this workstation to the central BCIS LAN database server. Default is local loopback or local IP.
         </p>
@@ -75,7 +75,7 @@ export const SettingsWorkspace: React.FC = () => {
               onChange={(e) => setInputUrl(e.target.value)}
               placeholder="http://192.168.1.100:4000"
               className="apple-input font-mono"
-              style={{ fontSize: '13px', height: '38px' }}
+              style={{ fontSize: '13px', height: '40px' }}
             />
             <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
               Example LAN formats: http://192.168.1.50:4000 or http://127.0.0.1:4000
@@ -87,7 +87,7 @@ export const SettingsWorkspace: React.FC = () => {
             onClick={handleTestConnection}
             disabled={isTesting}
             className="btn-primary"
-            style={{ height: '38px', minWidth: '160px' }}
+            style={{ height: '40px', minWidth: '160px' }}
           >
             {isTesting ? 'Testing Ping...' : 'Save & Test Ping'}
           </button>
@@ -99,8 +99,8 @@ export const SettingsWorkspace: React.FC = () => {
             marginTop: '16px',
             padding: '12px 16px',
             borderRadius: '8px',
-            backgroundColor: isOnline ? '#ECFDF5' : '#FFF1F2',
-            border: isOnline ? '1px solid #A7F3D0' : '1px solid #FECDD3',
+            backgroundColor: isOnline ? 'var(--success-bg)' : 'var(--danger-bg)',
+            border: isOnline ? '1px solid var(--success-border)' : '1px solid var(--danger-border)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -108,28 +108,29 @@ export const SettingsWorkspace: React.FC = () => {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span
+              className={isOnline ? 'pulse-green' : ''}
               style={{
                 width: '10px',
                 height: '10px',
                 borderRadius: '50%',
-                backgroundColor: isOnline ? '#059669' : '#DC2626',
+                backgroundColor: isOnline ? 'var(--pine)' : 'var(--danger)',
                 display: 'inline-block',
               }}
             />
-            <span style={{ fontSize: '13px', fontWeight: 500, color: isOnline ? '#065F46' : '#9F1239' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: isOnline ? 'var(--pine)' : '#991B1B' }}>
               {isOnline ? 'LAN Server Connection Established' : 'Server Unreachable (Offline Mode)'}
             </span>
           </div>
 
           {isOnline && latencyMs !== null && (
-            <div style={{ fontSize: '12px', color: '#059669', fontWeight: 600 }} className="font-mono">
+            <div style={{ fontSize: '12px', color: 'var(--pine)', fontWeight: 700 }} className="font-mono">
               Latency: {latencyMs}ms • DB: {serverHealth?.database || 'PostgreSQL OK'}
             </div>
           )}
         </div>
 
         {testResult && (
-          <div style={{ marginTop: '12px', fontSize: '12px', color: testResult.ok ? '#059669' : '#DC2626' }}>
+          <div style={{ marginTop: '12px', fontSize: '12px', fontWeight: 600, color: testResult.ok ? 'var(--pine)' : 'var(--danger)' }}>
             {testResult.message}
           </div>
         )}
@@ -137,7 +138,7 @@ export const SettingsWorkspace: React.FC = () => {
 
       {/* Hardware & Thermal Printer Preferences */}
       <div className="apple-card" style={{ padding: '20px' }}>
-        <h3 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '4px' }}>Thermal Receipt Printer & POS Station</h3>
+        <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>Thermal Receipt Printer & POS Station</h3>
         <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
           Configure ESC/POS thermal printing preferences for official receipts (BIR format).
         </p>
@@ -169,12 +170,12 @@ export const SettingsWorkspace: React.FC = () => {
                 className="pressable"
                 style={{
                   flex: 1,
-                  padding: '8px',
-                  borderRadius: '6px',
-                  border: printerConfig.type === '80mm' ? '2px solid #0071E3' : '1px solid var(--border-subtle)',
-                  backgroundColor: printerConfig.type === '80mm' ? '#EFF6FF' : '#FFFFFF',
-                  color: printerConfig.type === '80mm' ? '#0071E3' : 'var(--text-primary)',
-                  fontWeight: printerConfig.type === '80mm' ? 600 : 400,
+                  padding: '9px 12px',
+                  borderRadius: '7px',
+                  border: printerConfig.type === '80mm' ? '2px solid #2C5745' : '1px solid var(--border-subtle)',
+                  backgroundColor: printerConfig.type === '80mm' ? 'rgba(44, 87, 69, 0.09)' : '#FFFFFF',
+                  color: printerConfig.type === '80mm' ? '#2C5745' : 'var(--text-primary)',
+                  fontWeight: printerConfig.type === '80mm' ? 700 : 500,
                   fontSize: '12px',
                 }}
               >
@@ -186,12 +187,12 @@ export const SettingsWorkspace: React.FC = () => {
                 className="pressable"
                 style={{
                   flex: 1,
-                  padding: '8px',
-                  borderRadius: '6px',
-                  border: printerConfig.type === '58mm' ? '2px solid #0071E3' : '1px solid var(--border-subtle)',
-                  backgroundColor: printerConfig.type === '58mm' ? '#EFF6FF' : '#FFFFFF',
-                  color: printerConfig.type === '58mm' ? '#0071E3' : 'var(--text-primary)',
-                  fontWeight: printerConfig.type === '58mm' ? 600 : 400,
+                  padding: '9px 12px',
+                  borderRadius: '7px',
+                  border: printerConfig.type === '58mm' ? '2px solid #2C5745' : '1px solid var(--border-subtle)',
+                  backgroundColor: printerConfig.type === '58mm' ? 'rgba(44, 87, 69, 0.09)' : '#FFFFFF',
+                  color: printerConfig.type === '58mm' ? '#2C5745' : 'var(--text-primary)',
+                  fontWeight: printerConfig.type === '58mm' ? 700 : 500,
                   fontSize: '12px',
                 }}
               >
@@ -208,7 +209,7 @@ export const SettingsWorkspace: React.FC = () => {
               type="checkbox"
               checked={printerConfig.autoPrint}
               onChange={(e) => updatePrinterConfig({ autoPrint: e.target.checked })}
-              style={{ width: '16px', height: '16px', accentColor: '#0071E3' }}
+              style={{ width: '16px', height: '16px', accentColor: '#2C5745' }}
             />
             <span>Automatically print Official Receipt upon posting payment</span>
           </label>
@@ -218,7 +219,7 @@ export const SettingsWorkspace: React.FC = () => {
               type="checkbox"
               checked={printerConfig.cutPaper}
               onChange={(e) => updatePrinterConfig({ cutPaper: e.target.checked })}
-              style={{ width: '16px', height: '16px', accentColor: '#0071E3' }}
+              style={{ width: '16px', height: '16px', accentColor: '#2C5745' }}
             />
             <span>Send auto-cutter paper command (ESC i / GS V) after receipt print</span>
           </label>

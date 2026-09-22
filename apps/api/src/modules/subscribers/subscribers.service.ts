@@ -93,7 +93,16 @@ export async function listSubscribers(query?: SubscriberQueryInput) {
         ilike(subscribers.lastName, s),
         ilike(subscribers.businessName, s),
         ilike(subscribers.contactNumber, s),
-        ilike(subscribers.email, s)
+        ilike(subscribers.email, s),
+        sql`EXISTS (
+          SELECT 1 FROM subscriber_addresses sa
+          WHERE sa.subscriber_id = ${subscribers.id}
+          AND (
+            sa.barangay ILIKE ${s}
+            OR sa.municipality ILIKE ${s}
+            OR sa.street_address ILIKE ${s}
+          )
+        )`
       )
     );
   }
@@ -193,15 +202,17 @@ export async function getSubscriberById(idOrAccountNumber: string) {
     .from(subscriberAddresses)
     .where(eq(subscriberAddresses.subscriberId, sub.id));
 
-  // Fetch service accounts with plan info
+  // Fetch service accounts with plan info and service type
   const accounts = await db
     .select({
       account: serviceAccounts,
       planName: servicePlans.name,
       planCode: servicePlans.planCode,
+      serviceTypeCode: serviceTypes.code,
     })
     .from(serviceAccounts)
     .leftJoin(servicePlans, eq(serviceAccounts.servicePlanId, servicePlans.id))
+    .leftJoin(serviceTypes, eq(servicePlans.serviceTypeId, serviceTypes.id))
     .where(eq(serviceAccounts.subscriberId, sub.id))
     .orderBy(desc(serviceAccounts.createdAt));
 
@@ -211,10 +222,12 @@ export async function getSubscriberById(idOrAccountNumber: string) {
     ...sub,
     addresses,
     primaryAddress,
-    serviceAccounts: accounts.map(({ account, planName, planCode }) => ({
+    serviceAccounts: accounts.map(({ account, planName, planCode, serviceTypeCode }) => ({
       ...account,
       planName,
       planCode,
+      serviceType: serviceTypeCode || 'INTERNET',
+      monthlyFeeCentavos: account.currentRateCentavos,
     })),
   };
 }

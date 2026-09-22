@@ -381,5 +381,27 @@ describe('Desktop Client & Role-Based Workspaces (Phase 8)', () => {
       }
     });
   });
+
+  describe('8. Field Service Orders & Dispatch', () => {
+    it('creates a service order with valid payload and fallback in offline mode', async () => {
+      const orderRes = await apiClient.createServiceOrder({
+        serviceAccountId: '11111111-1111-1111-1111-111111111111',
+        orderType: 'INSTALLATION',
+        priority: 'NORMAL',
+        description: 'New fiber installation and optical link provisioning',
+        feeCentavos: 150000,
+      });
+      expect(orderRes.data).toBeDefined();
+      expect(orderRes.data.orderType).toBe('INSTALLATION');
+      expect(orderRes.data.orderNumber).toMatch(/^SO-\d{6}-\d+/);
+    });
+
+    it('retrieves service orders with normalized subscriber and technician names', async () => {
+      const ordersRes = await apiClient.listServiceOrders();
+      expect(ordersRes.data.length).toBeGreaterThan(0);
+      expect(ordersRes.data[0].subscriberName).toBeDefined();
+      expect(ordersRes.data[0].orderNumber).toBeDefined();
+    });
+  });
 });
 

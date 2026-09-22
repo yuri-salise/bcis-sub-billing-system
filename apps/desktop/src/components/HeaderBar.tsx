@@ -26,8 +26,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ onOpenSettings }) => {
     <header
       style={{
         height: '56px',
-        backgroundColor: '#0F172A',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+        backgroundColor: '#2E2910',
+        borderBottom: '1px solid rgba(235, 227, 167, 0.16)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -37,46 +37,51 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ onOpenSettings }) => {
         top: 0,
         zIndex: 50,
         backdropFilter: 'blur(20px)',
+        boxShadow: '0 2px 10px rgba(46, 41, 16, 0.25)',
       }}
     >
       {/* Brand & Station Info */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
         <div
           style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '8px',
-            backgroundColor: '#0071E3',
+            width: '34px',
+            height: '34px',
+            borderRadius: '9px',
+            backgroundColor: '#EB7D00',
+            color: '#FFFFFF',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontWeight: 700,
-            fontSize: '15px',
+            fontWeight: 800,
+            fontSize: '16px',
             letterSpacing: '-0.02em',
-            boxShadow: '0 2px 4px rgba(0, 113, 227, 0.3)',
+            boxShadow: '0 2px 8px rgba(235, 125, 0, 0.35)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
           }}
         >
           B
         </div>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '14px', fontWeight: 600, letterSpacing: '-0.01em' }}>
+            <span style={{ fontSize: '14px', fontWeight: 700, letterSpacing: '-0.01em', color: '#FFFFFF' }}>
               BCIS LAN Client
             </span>
             <span
               style={{
                 fontSize: '11px',
-                padding: '1px 6px',
-                borderRadius: '4px',
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                color: '#94A3B8',
+                padding: '2px 7px',
+                borderRadius: '5px',
+                backgroundColor: 'rgba(235, 227, 167, 0.14)',
+                color: '#EBE3A7',
+                border: '1px solid rgba(235, 227, 167, 0.25)',
                 fontFamily: 'var(--font-mono)',
+                fontWeight: 600,
               }}
             >
               {printerConfig.stationId}
             </span>
           </div>
-          <div style={{ fontSize: '11px', color: '#94A3B8' }}>
+          <div style={{ fontSize: '11px', color: '#EBE3A7', opacity: 0.8 }}>
             Bukidnon Cable & Internet Services
           </div>
         </div>
@@ -88,13 +93,15 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ onOpenSettings }) => {
           display: 'flex',
           alignItems: 'center',
           gap: '10px',
-          padding: '4px 12px',
+          padding: '5px 14px',
           borderRadius: '20px',
-          backgroundColor: 'rgba(255, 255, 255, 0.05)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
+          backgroundColor: 'rgba(0, 0, 0, 0.2)',
+          border: '1px solid rgba(235, 227, 167, 0.14)',
+          boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.2)',
         }}
       >
         <span
+          className={isOnline ? 'pulse-green' : ''}
           style={{
             width: '8px',
             height: '8px',
@@ -104,16 +111,19 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ onOpenSettings }) => {
             display: 'inline-block',
           }}
         />
-        <span style={{ fontSize: '12px', color: isOnline ? '#E2E8F0' : '#FCA5A5' }}>
+        <span style={{ fontSize: '12px', fontWeight: 500, color: isOnline ? '#EBE3A7' : '#FCA5A5' }}>
           {isOnline ? 'LAN Online' : 'LAN Offline (Demo Mode)'}
         </span>
         {isOnline && latencyMs !== null && (
           <span
             style={{
               fontSize: '11px',
-              color: '#10B981',
+              color: '#34D399',
               fontFamily: 'var(--font-mono)',
               fontWeight: 600,
+              backgroundColor: 'rgba(52, 211, 153, 0.1)',
+              padding: '1px 5px',
+              borderRadius: '3px',
             }}
           >
             {latencyMs}ms
@@ -125,25 +135,26 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ onOpenSettings }) => {
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
         {/* Role Display / Quick Account Switcher for Testing */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontSize: '12px', color: '#94A3B8' }}>Role:</span>
+          <span style={{ fontSize: '12px', color: '#EBE3A7', opacity: 0.8 }}>Role:</span>
           <select
             value={activeRole}
             onChange={(e) => switchTestAccount(e.target.value as UserRole)}
             title="Quick switch account & role for testing"
             style={{
-              padding: '4px 8px',
+              padding: '4px 10px',
               borderRadius: '6px',
-              backgroundColor: 'rgba(255, 255, 255, 0.1)',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
+              backgroundColor: 'rgba(235, 227, 167, 0.12)',
+              border: '1px solid rgba(235, 227, 167, 0.24)',
               color: '#FFFFFF',
               fontSize: '12px',
               cursor: 'pointer',
               outline: 'none',
-              fontWeight: 500,
+              fontWeight: 600,
+              fontFamily: 'inherit',
             }}
           >
             {testRoles.map((role) => (
-              <option key={role} value={role} style={{ background: '#0F172A', color: '#FFF' }}>
+              <option key={role} value={role} style={{ background: '#2E2910', color: '#FFFFFF' }}>
                 {getRoleDisplayName(role)}
               </option>
             ))}
@@ -152,24 +163,27 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ onOpenSettings }) => {
 
         {/* User Tag */}
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: '12px', fontWeight: 600 }}>{user?.fullName || 'Teller / User'}</div>
-          <div style={{ fontSize: '10px', color: '#94A3B8' }}>@{user?.username || 'user'}</div>
+          <div style={{ fontSize: '12px', fontWeight: 600, color: '#FFFFFF' }}>{user?.fullName || 'Teller / User'}</div>
+          <div style={{ fontSize: '10px', color: '#EBE3A7', opacity: 0.75 }}>@{user?.username || 'user'}</div>
         </div>
 
         {/* Lock Screen Button */}
         <button
           onClick={lockScreen}
-          className="btn-secondary"
+          className="pressable"
           title="Lock Workstation (Ctrl+L)"
           style={{
-            padding: '5px 10px',
+            padding: '6px 12px',
             fontSize: '12px',
-            backgroundColor: 'rgba(255, 255, 255, 0.08)',
-            color: '#FFFFFF',
-            border: '1px solid rgba(255, 255, 255, 0.15)',
+            fontWeight: 600,
+            backgroundColor: 'rgba(235, 227, 167, 0.12)',
+            color: '#EBE3A7',
+            border: '1px solid rgba(235, 227, 167, 0.25)',
+            borderRadius: '6px',
             display: 'inline-flex',
             alignItems: 'center',
             gap: '6px',
+            cursor: 'pointer',
           }}
         >
           <IconLock size={13} strokeWidth={2} />
@@ -184,7 +198,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ onOpenSettings }) => {
             padding: '5px 8px',
             fontSize: '12px',
             backgroundColor: 'transparent',
-            color: '#94A3B8',
+            color: '#EBE3A7',
+            opacity: 0.8,
             border: 'none',
             cursor: 'pointer',
             display: 'inline-flex',

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { formatCurrency } from '@bcis/domain';
 import { PaymentReceipt } from '../api/types.js';
 import { useConfig } from '../state/ConfigContext.js';
@@ -14,6 +14,16 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
   const [printPaperType, setPrintPaperType] = useState<'80mm' | '58mm'>(printerConfig.type || '80mm');
   const [isPrinting, setIsPrinting] = useState(false);
   const [printSuccess, setPrintSuccess] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   const handlePrint = async () => {
     setIsPrinting(true);
@@ -43,8 +53,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(15, 23, 42, 0.6)',
-        backdropFilter: 'blur(8px)',
+        backgroundColor: 'rgba(46, 41, 16, 0.72)',
+        backdropFilter: 'blur(10px)',
         zIndex: 1000,
         display: 'flex',
         alignItems: 'center',
@@ -74,7 +84,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontWeight: 600, fontSize: '15px' }}>Official Receipt Preview</span>
+            <span style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-primary)' }}>Official Receipt Preview</span>
             <span className="badge badge-success">BIR Standard</span>
           </div>
 
@@ -85,11 +95,14 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                 type="button"
                 onClick={() => setPrintPaperType('80mm')}
                 style={{
-                  padding: '4px 8px',
+                  padding: '5px 9px',
                   fontSize: '11px',
+                  fontWeight: 600,
                   border: 'none',
-                  backgroundColor: printPaperType === '80mm' ? '#0071E3' : '#FFFFFF',
-                  color: printPaperType === '80mm' ? '#FFFFFF' : '#475569',
+                  backgroundColor: printPaperType === '80mm' ? '#2C5745' : 'var(--bg-subtle)',
+                  color: printPaperType === '80mm' ? '#FFFFFF' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  transition: 'all 140ms ease',
                 }}
               >
                 80mm POS
@@ -98,11 +111,14 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                 type="button"
                 onClick={() => setPrintPaperType('58mm')}
                 style={{
-                  padding: '4px 8px',
+                  padding: '5px 9px',
                   fontSize: '11px',
+                  fontWeight: 600,
                   border: 'none',
-                  backgroundColor: printPaperType === '58mm' ? '#0071E3' : '#FFFFFF',
-                  color: printPaperType === '58mm' ? '#FFFFFF' : '#475569',
+                  backgroundColor: printPaperType === '58mm' ? '#2C5745' : 'var(--bg-subtle)',
+                  color: printPaperType === '58mm' ? '#FFFFFF' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  transition: 'all 140ms ease',
                 }}
               >
                 58mm Mini
@@ -185,20 +201,20 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                 receipt.allocations.map((a, idx) => (
                   <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '2px' }}>
                     <span>{a.invoiceNumber} {a.description || 'Monthly Service'}</span>
-                    <span className="tabular-nums">{formatCurrency(a.allocatedCentavos)}</span>
+                    <span className="tabular-nums">{formatCurrency(a.allocatedCentavos ?? 0)}</span>
                   </div>
                 ))
               ) : (
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
                   <span>Subscription Payment</span>
-                  <span className="tabular-nums">{formatCurrency(receipt.totalAmountCentavos)}</span>
+                  <span className="tabular-nums">{formatCurrency(receipt.totalAmountCentavos ?? 0)}</span>
                 </div>
               )}
 
               {receipt.advanceCreditCentavos && receipt.advanceCreditCentavos > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#059669' }}>
                   <span>Advance Credit Applied</span>
-                  <span className="tabular-nums">+{formatCurrency(receipt.advanceCreditCentavos)}</span>
+                  <span className="tabular-nums">+{formatCurrency(receipt.advanceCreditCentavos ?? 0)}</span>
                 </div>
               )}
             </div>
@@ -207,7 +223,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
             <div style={{ fontSize: '11px', marginBottom: '10px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 'bold', marginBottom: '4px' }}>
                 <span>TOTAL AMOUNT PAID:</span>
-                <span className="tabular-nums">{formatCurrency(receipt.totalAmountCentavos)}</span>
+                <span className="tabular-nums">{formatCurrency(receipt.totalAmountCentavos ?? 0)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Payment Method:</span>
@@ -222,13 +238,13 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
               {receipt.tenderedCentavos !== undefined && (
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span>Amount Tendered:</span>
-                  <span className="tabular-nums">{formatCurrency(receipt.tenderedCentavos)}</span>
+                  <span className="tabular-nums">{formatCurrency(receipt.tenderedCentavos ?? 0)}</span>
                 </div>
               )}
               {receipt.changeCentavos !== undefined && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
                   <span>Change:</span>
-                  <span className="tabular-nums">{formatCurrency(receipt.changeCentavos)}</span>
+                  <span className="tabular-nums">{formatCurrency(receipt.changeCentavos ?? 0)}</span>
                 </div>
               )}
             </div>
@@ -237,11 +253,11 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
             <div style={{ borderTop: '1px dashed #000000', paddingTop: '6px', fontSize: '10px', color: '#333' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>VATable Sales (12%):</span>
-                <span className="tabular-nums">{formatCurrency(vatableSalesCentavos)}</span>
+                <span className="tabular-nums">{formatCurrency(vatableSalesCentavos ?? 0)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>VAT Amount (12%):</span>
-                <span className="tabular-nums">{formatCurrency(vatAmountCentavos)}</span>
+                <span className="tabular-nums">{formatCurrency(vatAmountCentavos ?? 0)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>VAT-Exempt Sales:</span>

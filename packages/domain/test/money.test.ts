@@ -42,6 +42,12 @@ describe('Financial Arithmetic & Integer Centavos (ADR-004)', () => {
     it('rejects non-integer centavos', () => {
       expect(() => formatCurrency(999.99)).toThrowError(/requires an integer/);
     });
+
+    it('handles undefined or null gracefully by defaulting to ₱0.00', () => {
+      expect(formatCurrency(undefined)).toBe('₱0.00');
+      expect(formatCurrency(null)).toBe('₱0.00');
+      expect(formatCurrency()).toBe('₱0.00');
+    });
   });
 
   describe('centavosToPesos', () => {

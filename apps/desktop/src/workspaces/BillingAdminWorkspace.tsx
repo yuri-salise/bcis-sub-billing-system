@@ -1,13 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import { formatCurrency, parseCurrencyToCentavos } from '@bcis/domain';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  formatCurrency,
+  parseCurrencyToCentavos,
+  getMunicipalities,
+  getBarangays,
+  getDefaultPostalCode,
+} from '@bcis/domain';
 import { ServicePlanRecord, SubscriberRecord } from '../api/types.js';
 import { apiClient } from '../api/client.js';
-import { IconPlus, IconX } from '../components/icons/index.js';
+import { IconPlus, IconX, IconSearch, IconMapPin } from '../components/icons/index.js';
+import { Paginator } from '../components/Paginator.js';
 
 export const BillingAdminWorkspace: React.FC = () => {
   const [plans, setPlans] = useState<ServicePlanRecord[]>([]);
   const [subscribers, setSubscribers] = useState<SubscriberRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [subscriberSearch, setSubscriberSearch] = useState('');
+  const [selectedBarangayFilter, setSelectedBarangayFilter] = useState('ALL');
+
+  // Pagination state
+  const SUB_PAGE_SIZE = 10;
+  const PLAN_PAGE_SIZE = 5;
+  const [subPage, setSubPage] = useState(1);
+  const [planPage, setPlanPage] = useState(1);
 
   // Billing Batch Generator State
   const now = new Date();
@@ -28,8 +43,8 @@ export const BillingAdminWorkspace: React.FC = () => {
     phone: '09',
     email: '',
     addressLine1: '',
+    municipality: 'Malaybalay',
     barangay: 'Poblacion',
-    city: 'Malaybalay',
     planId: '',
   });
 
@@ -43,8 +58,8 @@ export const BillingAdminWorkspace: React.FC = () => {
     email: '',
     status: 'ACTIVE',
     addressLine1: '',
-    barangay: '',
-    city: '',
+    municipality: 'Malaybalay',
+    barangay: 'Poblacion',
   });
 
   // New Plan Modal State
@@ -114,6 +129,44 @@ export const BillingAdminWorkspace: React.FC = () => {
     }
   };
 
+  const filteredSubscribers = useMemo(() => {
+    let list = subscribers;
+    if (selectedBarangayFilter !== 'ALL') {
+      list = list.filter((s) => s.primaryAddress?.barangay === selectedBarangayFilter);
+    }
+    if (subscriberSearch.trim()) {
+      const q = subscriberSearch.trim().toLowerCase();
+      list = list.filter(
+        (s) =>
+          s.firstName.toLowerCase().includes(q) ||
+          s.lastName.toLowerCase().includes(q) ||
+          s.accountNumber.toLowerCase().includes(q) ||
+          s.phone.includes(q) ||
+          s.primaryAddress?.barangay?.toLowerCase().includes(q) ||
+          s.primaryAddress?.municipality?.toLowerCase().includes(q) ||
+          s.primaryAddress?.streetAddress?.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [subscribers, subscriberSearch, selectedBarangayFilter]);
+
+  // Reset subscriber page when search/filter changes
+  useEffect(() => {
+    setSubPage(1);
+  }, [subscriberSearch, selectedBarangayFilter]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isSubscriberModalOpen) setIsSubscriberModalOpen(false);
+        if (isEditSubModalOpen) setIsEditSubModalOpen(false);
+        if (isPlanModalOpen) setIsPlanModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isSubscriberModalOpen, isEditSubModalOpen, isPlanModalOpen]);
+
   const handleCreateSubscriber = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -125,10 +178,21 @@ export const BillingAdminWorkspace: React.FC = () => {
         primaryAddress: {
           addressLine1: newSub.addressLine1,
           barangay: newSub.barangay,
-          city: newSub.city,
+          municipality: newSub.municipality,
+          city: newSub.municipality,
         },
       });
       setIsSubscriberModalOpen(false);
+      setNewSub({
+        firstName: '',
+        lastName: '',
+        phone: '09',
+        email: '',
+        addressLine1: '',
+        municipality: 'Malaybalay',
+        barangay: 'Poblacion',
+        planId: plans[0]?.id || '',
+      });
       loadData();
     } catch (err: any) {
       alert(`Failed to register subscriber: ${err.message}`);
@@ -143,9 +207,9 @@ export const BillingAdminWorkspace: React.FC = () => {
       phone: sub.phone,
       email: sub.email || '',
       status: sub.status || 'ACTIVE',
-      addressLine1: sub.primaryAddress?.addressLine1 || '',
+      addressLine1: sub.primaryAddress?.addressLine1 || sub.primaryAddress?.streetAddress || '',
       barangay: sub.primaryAddress?.barangay || 'Poblacion',
-      city: sub.primaryAddress?.city || 'Malaybalay',
+      municipality: sub.primaryAddress?.municipality || sub.primaryAddress?.city || 'Malaybalay',
     });
     setIsEditSubModalOpen(true);
   };
@@ -161,7 +225,7 @@ export const BillingAdminWorkspace: React.FC = () => {
         status: editSub.status as any,
         streetAddress: editSub.addressLine1,
         barangay: editSub.barangay,
-        municipality: editSub.city,
+        municipality: editSub.municipality,
       });
       setIsEditSubModalOpen(false);
       loadData();
@@ -190,26 +254,26 @@ export const BillingAdminWorkspace: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px', flex: 1, overflowY: 'auto' }}>
+    <div className="workspace-animate-enter" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px', flex: 1, overflowY: 'auto' }}>
       {/* KPI Metrics Ribbon */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
         <div className="apple-card" style={{ padding: '16px' }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>
             Total Registered Subscribers
           </div>
-          <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
+          <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>
             {subscribers.length}
           </div>
-          <div style={{ fontSize: '11px', color: '#059669', marginTop: '2px' }}>
+          <div style={{ fontSize: '11px', color: 'var(--pine)', marginTop: '2px', fontWeight: 600 }}>
             {subscribers.filter((s) => s.status === 'ACTIVE').length} Active Services
           </div>
         </div>
 
         <div className="apple-card" style={{ padding: '16px' }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>
             Active Plans in Catalog
           </div>
-          <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
+          <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>
             {plans.length}
           </div>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
@@ -218,10 +282,10 @@ export const BillingAdminWorkspace: React.FC = () => {
         </div>
 
         <div className="apple-card" style={{ padding: '16px' }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>
             Estimated Monthly Billing
           </div>
-          <div style={{ fontSize: '24px', fontWeight: 700, color: '#0071E3', marginTop: '4px' }} className="tabular-nums">
+          <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--pine)', marginTop: '4px' }} className="tabular-nums">
             {formatCurrency(subscribers.length * 149950)}
           </div>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
@@ -230,13 +294,13 @@ export const BillingAdminWorkspace: React.FC = () => {
         </div>
 
         <div className="apple-card" style={{ padding: '16px' }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>
             Billing Run Readiness
           </div>
-          <div style={{ fontSize: '24px', fontWeight: 700, color: '#059669', marginTop: '4px' }}>
+          <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--pine)', marginTop: '4px' }}>
             Ready
           </div>
-          <div style={{ fontSize: '11px', color: '#059669', marginTop: '2px' }}>
+          <div style={{ fontSize: '11px', color: 'var(--pine)', marginTop: '2px', fontWeight: 600 }}>
             System Integrity Verified
           </div>
         </div>
@@ -246,7 +310,7 @@ export const BillingAdminWorkspace: React.FC = () => {
       <div className="apple-card" style={{ padding: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div>
-            <h3 style={{ fontSize: '16px', fontWeight: 600 }}>Monthly Billing Cycle Batch Generator</h3>
+            <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>Monthly Billing Cycle Batch Generator</h3>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
               Generates recurring subscription invoices across active subscriber accounts.
             </div>
@@ -257,7 +321,7 @@ export const BillingAdminWorkspace: React.FC = () => {
                 type="checkbox"
                 checked={isDryRun}
                 onChange={(e) => setIsDryRun(e.target.checked)}
-                style={{ width: '16px', height: '16px', accentColor: '#0071E3' }}
+                style={{ width: '16px', height: '16px', accentColor: '#2C5745' }}
               />
               <span>Dry-Run / Preview Mode</span>
             </label>
@@ -318,10 +382,11 @@ export const BillingAdminWorkspace: React.FC = () => {
               marginTop: '16px',
               padding: '12px 16px',
               borderRadius: '8px',
-              backgroundColor: isDryRun ? '#EFF6FF' : '#ECFDF5',
-              border: isDryRun ? '1px solid #BFDBFE' : '1px solid #A7F3D0',
+              backgroundColor: isDryRun ? 'var(--warning-bg)' : 'var(--success-bg)',
+              border: isDryRun ? '1px solid var(--warning-border)' : '1px solid var(--success-border)',
               fontSize: '13px',
-              color: isDryRun ? '#1E40AF' : '#065F46',
+              fontWeight: 500,
+              color: isDryRun ? 'var(--amber)' : 'var(--pine)',
             }}
           >
             {batchResult.message}
@@ -334,7 +399,7 @@ export const BillingAdminWorkspace: React.FC = () => {
         {/* Service Plans Catalog */}
         <div className="apple-card" style={{ padding: '18px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-            <h4 style={{ fontSize: '14px', fontWeight: 600 }}>Service Plans Catalog</h4>
+            <h4 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>Service Plans Catalog</h4>
             <button
               type="button"
               onClick={() => setIsPlanModalOpen(true)}
@@ -346,8 +411,8 @@ export const BillingAdminWorkspace: React.FC = () => {
             </button>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {plans.map((p) => (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '310px', overflowY: 'auto' }}>
+            {plans.slice((planPage - 1) * PLAN_PAGE_SIZE, planPage * PLAN_PAGE_SIZE).map((p) => (
               <div
                 key={p.id}
                 style={{
@@ -355,86 +420,145 @@ export const BillingAdminWorkspace: React.FC = () => {
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   padding: '10px 12px',
-                  borderRadius: '6px',
+                  borderRadius: '7px',
                   border: '1px solid var(--border-subtle)',
                   backgroundColor: '#FFFFFF',
                 }}
               >
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: '13px' }}>{p.name}</div>
+                  <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary)' }}>{p.name}</div>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)' }} className="font-mono">
                     {p.code} • {p.serviceType} {p.bandwidthMbps ? `• ${p.bandwidthMbps} Mbps` : ''}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div className="tabular-nums font-semibold" style={{ color: '#0071E3' }}>
-                    {formatCurrency(p.monthlyFeeCentavos)}
+                  <div className="tabular-nums font-semibold" style={{ color: 'var(--pine)' }}>
+                    {formatCurrency(p.monthlyFeeCentavos ?? (p as any).monthlyRecurringCentavos ?? 0)}
                   </div>
                   <span className="badge badge-success" style={{ fontSize: '9px' }}>Active</span>
                 </div>
               </div>
             ))}
           </div>
+          <Paginator
+            page={planPage}
+            totalPages={Math.ceil(plans.length / PLAN_PAGE_SIZE)}
+            totalItems={plans.length}
+            pageSize={PLAN_PAGE_SIZE}
+            onPageChange={setPlanPage}
+          />
         </div>
 
         {/* Subscriber Roster */}
         <div className="apple-card" style={{ padding: '18px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-            <h4 style={{ fontSize: '14px', fontWeight: 600 }}>Subscriber Roster</h4>
+            <div>
+              <h4 style={{ fontSize: '14px', fontWeight: 600 }}>Subscriber Roster</h4>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                {filteredSubscribers.length} subscriber{filteredSubscribers.length !== 1 ? 's' : ''} listed
+              </div>
+            </div>
             <button
               type="button"
               onClick={() => setIsSubscriberModalOpen(true)}
               className="btn-primary"
-              style={{ fontSize: '11px', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+              style={{ fontSize: '11px', padding: '5px 12px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
             >
-              <IconPlus size={12} strokeWidth={2} />
+              <IconPlus size={13} strokeWidth={2} />
               <span>Register Subscriber</span>
             </button>
           </div>
 
+          {/* Search & Barangay Filter Bar */}
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <span style={{ position: 'absolute', left: '10px', top: '9px', color: 'var(--text-tertiary)' }}>
+                <IconSearch size={14} />
+              </span>
+              <input
+                type="text"
+                placeholder="Search by name, account number, phone, or barangay..."
+                value={subscriberSearch}
+                onChange={(e) => setSubscriberSearch(e.target.value)}
+                className="apple-input"
+                style={{ paddingLeft: '32px', fontSize: '12px', height: '34px' }}
+              />
+            </div>
+            <select
+              value={selectedBarangayFilter}
+              onChange={(e) => setSelectedBarangayFilter(e.target.value)}
+              className="apple-input"
+              style={{ width: '160px', fontSize: '12px', height: '34px' }}
+            >
+              <option value="ALL">All Barangays</option>
+              {getBarangays('Malaybalay').map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {subscribers.slice(0, 8).map((s) => (
-              <div
-                key={s.id}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '10px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--border-subtle)',
-                  backgroundColor: '#FFFFFF',
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '13px' }}>
-                    {s.firstName} {s.lastName}
-                  </div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }} className="font-mono">
-                    {s.accountNumber} • {s.phone}
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {filteredSubscribers.length > 0 ? (
+              filteredSubscribers
+                .slice((subPage - 1) * SUB_PAGE_SIZE, subPage * SUB_PAGE_SIZE)
+                .map((s) => (
+                <div
+                  key={s.id}
+                  className="table-row-hover"
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '10px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border-subtle)',
+                    backgroundColor: '#FFFFFF',
+                  }}
+                >
                   <div>
-                    <span className={`badge ${s.status === 'ACTIVE' ? 'badge-success' : 'badge-warning'}`}>
-                      {s.status}
-                    </span>
-                    <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px' }}>
-                      {s.primaryAddress?.barangay || 'Poblacion'}
+                    <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary)' }}>
+                      {s.firstName} {s.lastName}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }} className="font-mono">
+                      {s.accountNumber} • {s.phone}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenEditSub(s)}
-                    className="btn-secondary"
-                    style={{ fontSize: '11px', padding: '3px 8px' }}
-                  >
-                    Edit
-                  </button>
+                  <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div>
+                      <span className={`badge ${s.status === 'ACTIVE' ? 'badge-success' : 'badge-warning'}`}>
+                        {s.status}
+                      </span>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '3px', justifyContent: 'flex-end' }}>
+                        <IconMapPin size={10} style={{ color: 'var(--pine)' }} />
+                        <span>{s.primaryAddress?.barangay || 'Poblacion'}, {s.primaryAddress?.municipality || s.primaryAddress?.city || 'Malaybalay'}</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditSub(s)}
+                      className="btn-secondary"
+                      style={{ fontSize: '11px', padding: '4px 10px' }}
+                    >
+                      Edit
+                    </button>
+                  </div>
                 </div>
+              ))
+            ) : (
+              <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: '12px' }}>
+                No subscribers match your search filter.
               </div>
-            ))}
+            )}
           </div>
+          <Paginator
+            page={subPage}
+            totalPages={Math.ceil(filteredSubscribers.length / SUB_PAGE_SIZE)}
+            totalItems={filteredSubscribers.length}
+            pageSize={SUB_PAGE_SIZE}
+            onPageChange={setSubPage}
+          />
         </div>
       </div>
 
@@ -444,8 +568,8 @@ export const BillingAdminWorkspace: React.FC = () => {
           style={{
             position: 'fixed',
             inset: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.6)',
-            backdropFilter: 'blur(8px)',
+            backgroundColor: 'rgba(46, 41, 16, 0.72)',
+            backdropFilter: 'blur(10px)',
             zIndex: 1000,
             display: 'flex',
             alignItems: 'center',
@@ -486,6 +610,7 @@ export const BillingAdminWorkspace: React.FC = () => {
                   <input
                     type="text"
                     required
+                    autoFocus
                     value={newSub.firstName}
                     onChange={(e) => setNewSub({ ...newSub, firstName: e.target.value })}
                     className="apple-input"
@@ -535,28 +660,40 @@ export const BillingAdminWorkspace: React.FC = () => {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    Municipality / City
+                  </label>
+                  <select
+                    value={newSub.municipality}
+                    onChange={(e) => {
+                      const m = e.target.value;
+                      const bgys = getBarangays(m);
+                      setNewSub({
+                        ...newSub,
+                        municipality: m,
+                        barangay: bgys[0] || '',
+                      });
+                    }}
+                    className="apple-input"
+                  >
+                    {getMunicipalities().map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
                     Barangay
                   </label>
-                  <input
-                    type="text"
-                    required
+                  <select
                     value={newSub.barangay}
                     onChange={(e) => setNewSub({ ...newSub, barangay: e.target.value })}
                     className="apple-input"
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                    City / Municipality
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={newSub.city}
-                    onChange={(e) => setNewSub({ ...newSub, city: e.target.value })}
-                    className="apple-input"
-                  />
+                  >
+                    {getBarangays(newSub.municipality).map((b) => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -579,8 +716,8 @@ export const BillingAdminWorkspace: React.FC = () => {
           style={{
             position: 'fixed',
             inset: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.6)',
-            backdropFilter: 'blur(8px)',
+            backgroundColor: 'rgba(46, 41, 16, 0.72)',
+            backdropFilter: 'blur(10px)',
             zIndex: 1000,
             display: 'flex',
             alignItems: 'center',
@@ -620,6 +757,7 @@ export const BillingAdminWorkspace: React.FC = () => {
                 <input
                   type="text"
                   required
+                  autoFocus
                   placeholder="e.g. Fiber Ultra 75Mbps"
                   value={newPlan.name}
                   onChange={(e) => setNewPlan({ ...newPlan, name: e.target.value })}
@@ -705,8 +843,8 @@ export const BillingAdminWorkspace: React.FC = () => {
           style={{
             position: 'fixed',
             inset: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.6)',
-            backdropFilter: 'blur(8px)',
+            backgroundColor: 'rgba(46, 41, 16, 0.72)',
+            backdropFilter: 'blur(10px)',
             zIndex: 1000,
             display: 'flex',
             alignItems: 'center',
@@ -747,6 +885,7 @@ export const BillingAdminWorkspace: React.FC = () => {
                   <input
                     type="text"
                     required
+                    autoFocus
                     value={editSub.firstName}
                     onChange={(e) => setEditSub({ ...editSub, firstName: e.target.value })}
                     className="apple-input"
@@ -823,28 +962,40 @@ export const BillingAdminWorkspace: React.FC = () => {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    Municipality / City
+                  </label>
+                  <select
+                    value={editSub.municipality}
+                    onChange={(e) => {
+                      const m = e.target.value;
+                      const bgys = getBarangays(m);
+                      setEditSub({
+                        ...editSub,
+                        municipality: m,
+                        barangay: bgys[0] || '',
+                      });
+                    }}
+                    className="apple-input"
+                  >
+                    {getMunicipalities().map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
                     Barangay
                   </label>
-                  <input
-                    type="text"
-                    required
+                  <select
                     value={editSub.barangay}
                     onChange={(e) => setEditSub({ ...editSub, barangay: e.target.value })}
                     className="apple-input"
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                    City / Municipality
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editSub.city}
-                    onChange={(e) => setEditSub({ ...editSub, city: e.target.value })}
-                    className="apple-input"
-                  />
+                  >
+                    {getBarangays(editSub.municipality).map((b) => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

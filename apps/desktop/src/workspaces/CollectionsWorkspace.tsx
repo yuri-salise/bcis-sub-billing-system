@@ -3,6 +3,7 @@ import { formatCurrency } from '@bcis/domain';
 import { CollectionAreaRecord, CollectionRouteRecord, RouteSheetItem } from '../api/types.js';
 import { apiClient } from '../api/client.js';
 import { IconPrinter } from '../components/icons/index.js';
+import { Paginator } from '../components/Paginator.js';
 
 export const CollectionsWorkspace: React.FC = () => {
   const [areas, setAreas] = useState<CollectionAreaRecord[]>([]);
@@ -12,6 +13,11 @@ export const CollectionsWorkspace: React.FC = () => {
   const [routeSheet, setRouteSheet] = useState<RouteSheetItem[]>([]);
   const [overdueOnly, setOverdueOnly] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  // Pagination
+  const SHEET_PAGE_SIZE = 15;
+  const [sheetPage, setSheetPage] = useState(1);
+
 
   useEffect(() => {
     const loadAreas = async () => {
@@ -75,10 +81,15 @@ export const CollectionsWorkspace: React.FC = () => {
     return filteredItems.reduce((acc, item) => acc + (item?.arrearsCentavos || 0), 0);
   }, [filteredItems]);
 
+  // Reset page when filters change
+  useEffect(() => {
+    setSheetPage(1);
+  }, [selectedAreaId, selectedRouteId, overdueOnly]);
+
   const selectedArea = Array.isArray(areas) ? areas.find((a) => a.id === selectedAreaId) : undefined;
 
   return (
-    <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', flex: 1, overflowY: 'auto' }}>
+    <div className="workspace-animate-enter" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', flex: 1, overflowY: 'auto' }}>
       {/* Top Selector & Controls */}
       <div className="apple-card" style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -93,7 +104,7 @@ export const CollectionsWorkspace: React.FC = () => {
                 setSelectedRouteId('ALL');
               }}
               className="apple-input"
-              style={{ width: '220px', marginTop: '2px', fontWeight: 500 }}
+              style={{ width: '220px', marginTop: '2px', fontWeight: 600 }}
             >
               {areas.map((area) => (
                 <option key={area.id} value={area.id}>
@@ -111,7 +122,7 @@ export const CollectionsWorkspace: React.FC = () => {
               value={selectedRouteId}
               onChange={(e) => setSelectedRouteId(e.target.value)}
               className="apple-input"
-              style={{ width: '220px', marginTop: '2px' }}
+              style={{ width: '220px', marginTop: '2px', fontWeight: 500 }}
             >
               <option value="ALL">All Routes in Area ({routes.length})</option>
               {routes.map((r) => (
@@ -125,14 +136,14 @@ export const CollectionsWorkspace: React.FC = () => {
 
         {/* Overdue Only Filter Switch */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 500 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
             <input
               type="checkbox"
               checked={overdueOnly}
               onChange={(e) => setOverdueOnly(e.target.checked)}
-              style={{ width: '16px', height: '16px', accentColor: '#E11D48' }}
+              style={{ width: '16px', height: '16px', accentColor: '#EB7D00' }}
             />
-            <span style={{ color: overdueOnly ? '#E11D48' : 'var(--text-primary)' }}>
+            <span style={{ color: overdueOnly ? 'var(--amber)' : 'var(--text-primary)' }}>
               Show Overdue Arrears Only
             </span>
           </label>
@@ -152,10 +163,10 @@ export const CollectionsWorkspace: React.FC = () => {
       {/* Summary KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
         <div className="apple-card" style={{ padding: '16px' }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>
+          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', fontWeight: 600 }}>
             Accounts on Run Sheet
           </div>
-          <div style={{ fontSize: '24px', fontWeight: 700, marginTop: '4px' }}>
+          <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>
             {filteredItems.length}
           </div>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
@@ -164,16 +175,17 @@ export const CollectionsWorkspace: React.FC = () => {
         </div>
 
         <div className="apple-card" style={{ padding: '16px' }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>
+          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', fontWeight: 600 }}>
             Total Collectibles / Arrears
           </div>
           <div
             className="tabular-nums"
             style={{
               fontSize: '24px',
-              fontWeight: 700,
-              color: totalArrearsCentavos > 0 ? '#E11D48' : '#059669',
+              fontWeight: 800,
+              color: totalArrearsCentavos > 0 ? '#DC2626' : 'var(--pine)',
               marginTop: '4px',
+              letterSpacing: '-0.02em',
             }}
           >
             {formatCurrency(totalArrearsCentavos)}
@@ -184,13 +196,13 @@ export const CollectionsWorkspace: React.FC = () => {
         </div>
 
         <div className="apple-card" style={{ padding: '16px' }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>
+          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', fontWeight: 600 }}>
             Assigned Field Collector
           </div>
-          <div style={{ fontSize: '18px', fontWeight: 600, marginTop: '4px' }}>
+          <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
             {selectedArea?.assignedCollectorName || 'Collector Rommel'}
           </div>
-          <div style={{ fontSize: '11px', color: '#059669', marginTop: '2px' }}>
+          <div style={{ fontSize: '11px', color: 'var(--pine)', marginTop: '2px', fontWeight: 600 }}>
             Active Field Route
           </div>
         </div>
@@ -199,7 +211,7 @@ export const CollectionsWorkspace: React.FC = () => {
       {/* Field Route Sheet Table */}
       <div className="apple-card" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '18px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-          <h3 style={{ fontSize: '15px', fontWeight: 600 }}>
+          <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>
             Field Route Run Sheet: {selectedArea?.name}
           </h3>
           <span className="badge badge-neutral">
@@ -210,7 +222,7 @@ export const CollectionsWorkspace: React.FC = () => {
         <div style={{ overflowX: 'auto', flex: 1 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-tertiary)', textAlign: 'left' }}>
+              <tr style={{ borderBottom: '1px solid var(--border-strong)', color: 'var(--text-muted)', textAlign: 'left' }}>
                 <th style={{ padding: '10px 8px' }}>Account No.</th>
                 <th style={{ padding: '10px 8px' }}>Subscriber Name</th>
                 <th style={{ padding: '10px 8px' }}>Address & Barangay</th>
@@ -224,12 +236,14 @@ export const CollectionsWorkspace: React.FC = () => {
             </thead>
             <tbody>
               {filteredItems.length > 0 ? (
-                filteredItems.map((item) => (
-                  <tr key={item.serviceAccountId} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                filteredItems
+                  .slice((sheetPage - 1) * SHEET_PAGE_SIZE, sheetPage * SHEET_PAGE_SIZE)
+                  .map((item) => (
+                  <tr key={item.serviceAccountId} className="table-row-hover" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                     <td style={{ padding: '10px 8px' }} className="font-mono font-semibold">
                       {item.accountNumber}
                     </td>
-                    <td style={{ padding: '10px 8px', fontWeight: 500 }}>
+                    <td style={{ padding: '10px 8px', fontWeight: 600, color: 'var(--text-primary)' }}>
                       {item.subscriberName}
                     </td>
                     <td style={{ padding: '10px 8px', color: 'var(--text-secondary)' }}>
@@ -242,26 +256,26 @@ export const CollectionsWorkspace: React.FC = () => {
                       {item.planName}
                     </td>
                     <td style={{ padding: '10px 8px', textAlign: 'right' }} className="tabular-nums">
-                      {formatCurrency(item.planFeeCentavos)}
+                      {formatCurrency(item.planFeeCentavos ?? (item as any).monthlyRateCentavos ?? 0)}
                     </td>
                     <td
                       style={{
                         padding: '10px 8px',
                         textAlign: 'right',
-                        fontWeight: 600,
-                        color: item.arrearsCentavos > 0 ? '#E11D48' : '#059669',
+                        fontWeight: 700,
+                        color: (item.arrearsCentavos || 0) > 0 ? '#DC2626' : 'var(--pine)',
                       }}
                       className="tabular-nums"
                     >
-                      {formatCurrency(item.arrearsCentavos)}
+                      {formatCurrency(item.arrearsCentavos ?? 0)}
                     </td>
                     <td style={{ padding: '10px 8px', textAlign: 'center' }} className="tabular-nums">
                       {item.daysOverdue > 0 ? (
-                        <span style={{ color: item.daysOverdue > 60 ? '#E11D48' : '#D97706', fontWeight: 600 }}>
+                        <span style={{ color: item.daysOverdue > 60 ? '#DC2626' : 'var(--amber)', fontWeight: 700 }}>
                           {item.daysOverdue}d
                         </span>
                       ) : (
-                        <span style={{ color: '#059669' }}>0d</span>
+                        <span style={{ color: 'var(--pine)', fontWeight: 600 }}>0d</span>
                       )}
                     </td>
                     <td style={{ padding: '10px 8px', textAlign: 'center' }}>
@@ -281,6 +295,13 @@ export const CollectionsWorkspace: React.FC = () => {
             </tbody>
           </table>
         </div>
+        <Paginator
+          page={sheetPage}
+          totalPages={Math.ceil(filteredItems.length / SHEET_PAGE_SIZE)}
+          totalItems={filteredItems.length}
+          pageSize={SHEET_PAGE_SIZE}
+          onPageChange={setSheetPage}
+        />
       </div>
     </div>
   );

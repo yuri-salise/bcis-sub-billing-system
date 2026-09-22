@@ -10,6 +10,7 @@
     "test:unit": "pnpm --filter @bcis/domain test",
     "test:integration": "pnpm --filter @bcis/api test",
     "test:acceptance": "pnpm --filter @bcis/api test:acceptance",
+    "dev": "pnpm --filter @bcis/api --filter @bcis/desktop --parallel dev",
     "dev:api": "pnpm --filter @bcis/api dev",
     "dev:desktop": "pnpm --filter @bcis/desktop dev",
     "dist:desktop": "pnpm --filter @bcis/desktop run dist",

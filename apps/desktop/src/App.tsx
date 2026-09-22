@@ -38,10 +38,25 @@ const MainLayout: React.FC = () => {
   // Global Keyboard Shortcuts (Hotkeys mapped to permitted workspaces)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement as HTMLElement | null;
+      const isInputFocused = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT');
+      const isModalOpen = Boolean(document.querySelector('.glass-modal, [role="dialog"]'));
+
       // Ctrl+L or Cmd+L -> Lock Workstation
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'l') {
         e.preventDefault();
         lockScreen();
+        return;
+      }
+
+      // If typing inside an input or if a modal is open, do not trigger workspace switching
+      if (isModalOpen || isInputFocused) {
+        return;
+      }
+
+      // In POS workspace, F1 is reserved for Accept Payment
+      if (currentView === 'pos' && e.key === 'F1') {
+        return;
       }
 
       // F1 through F6 -> Fast workspace switching mapped to user's permitted views
@@ -56,7 +71,7 @@ const MainLayout: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [lockScreen, activeRole]);
+  }, [lockScreen, activeRole, currentView]);
 
   const isAuthorized = canAccessWorkspace(activeRole, currentView);
 

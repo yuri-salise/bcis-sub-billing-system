@@ -60,14 +60,14 @@ export const LockOverlay: React.FC = () => {
       <div
         className={isShaking ? 'shake modal-animate-enter' : 'modal-animate-enter'}
         style={{
-          width: '360px',
-          padding: '36px 32px',
-          borderRadius: '16px',
-          backgroundColor: 'rgba(255, 255, 255, 0.06)',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+          width: '380px',
+          padding: '38px 32px',
+          borderRadius: '18px',
+          backgroundColor: 'rgba(235, 227, 167, 0.07)',
+          border: '1px solid rgba(235, 227, 167, 0.22)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(235, 227, 167, 0.2)',
           textAlign: 'center',
-          backdropFilter: 'blur(20px)',
+          backdropFilter: 'blur(24px)',
         }}
       >
         {/* Lock Icon */}
@@ -76,22 +76,23 @@ export const LockOverlay: React.FC = () => {
             width: '64px',
             height: '64px',
             borderRadius: '50%',
-            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            backgroundColor: 'rgba(235, 125, 0, 0.15)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             margin: '0 auto 16px',
-            border: '1px solid rgba(255, 255, 255, 0.15)',
+            border: '1px solid rgba(235, 125, 0, 0.4)',
+            boxShadow: '0 4px 12px rgba(235, 125, 0, 0.25)',
           }}
         >
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#EB7D00" strokeWidth="2.2">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
           </svg>
         </div>
 
-        <h2 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '4px' }}>Workstation Locked</h2>
-        <div style={{ fontSize: '13px', color: '#94A3B8', marginBottom: '20px' }}>
+        <h2 style={{ fontSize: '19px', fontWeight: 700, marginBottom: '4px', color: '#FFFFFF' }}>Workstation Locked</h2>
+        <div style={{ fontSize: '13px', color: '#EBE3A7', marginBottom: '22px', opacity: 0.9 }}>
           {printerConfig.stationId} • {user?.fullName || 'Active Session'}
         </div>
 
@@ -106,18 +107,20 @@ export const LockOverlay: React.FC = () => {
               disabled={isSubmitting}
               style={{
                 width: '100%',
-                padding: '10px 14px',
+                padding: '11px 14px',
                 borderRadius: '8px',
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                border: errorMessage ? '1px solid #EF4444' : '1px solid rgba(255, 255, 255, 0.2)',
+                backgroundColor: 'rgba(235, 227, 167, 0.12)',
+                border: errorMessage ? '1px solid #DC2626' : '1px solid rgba(235, 227, 167, 0.25)',
                 color: '#FFFFFF',
                 fontSize: '14px',
                 textAlign: 'center',
                 outline: 'none',
+                fontFamily: 'inherit',
+                transition: 'border-color 140ms ease',
               }}
             />
             {errorMessage && (
-              <div style={{ fontSize: '12px', color: '#F87171', marginTop: '6px' }}>
+              <div style={{ fontSize: '12px', color: '#FCA5A5', marginTop: '6px', fontWeight: 500 }}>
                 {errorMessage}
               </div>
             )}
@@ -125,11 +128,11 @@ export const LockOverlay: React.FC = () => {
 
           <button
             type="submit"
-            className="btn-primary"
+            className="btn-accent"
             disabled={!password || isSubmitting}
             style={{
               width: '100%',
-              padding: '10px',
+              padding: '11px',
               fontSize: '14px',
             }}
           >
@@ -137,7 +140,7 @@ export const LockOverlay: React.FC = () => {
           </button>
         </form>
 
-        <div style={{ marginTop: '16px', fontSize: '11px', color: '#64748B' }}>
+        <div style={{ marginTop: '18px', fontSize: '11px', color: '#EBE3A7', opacity: 0.7 }}>
           Security Policy: 5 failed attempts will lock account.
         </div>
       </div>

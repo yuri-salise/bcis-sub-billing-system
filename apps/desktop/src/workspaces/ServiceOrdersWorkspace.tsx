@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { formatCurrency, parseCurrencyToCentavos } from '@bcis/domain';
-import { ServiceOrderRecord } from '../api/types.js';
+import { ServiceOrderRecord, SubscriberRecord } from '../api/types.js';
 import { apiClient } from '../api/client.js';
 import { IconPlus, IconX } from '../components/icons/index.js';
 
@@ -11,13 +11,17 @@ export const ServiceOrdersWorkspace: React.FC = () => {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState<boolean>(false);
   const [isNewOrderModalOpen, setIsNewOrderModalOpen] = useState<boolean>(false);
   const [resolutionNotes, setResolutionNotes] = useState<string>('');
-  const [assignedTechName, setAssignedTechName] = useState<string>('Tech Noel');
+  const [technicians, setTechnicians] = useState<Array<{ id: string; fullName: string }>>([]);
+  const [selectedTechId, setSelectedTechId] = useState<string>('');
+  const [subscribers, setSubscribers] = useState<SubscriberRecord[]>([]);
 
   const [newOrder, setNewOrder] = useState({
     orderType: 'INSTALLATION',
     priority: 'NORMAL',
-    subscriberId: 'sub-001',
-    serviceAccountId: 'acc-001',
+    subscriberId: '',
+    serviceAccountId: '',
+    assignedTechnicianId: '',
+    scheduledDate: new Date().toISOString().split('T')[0],
     description: '',
     feeStr: '1500.00',
   });
@@ -29,13 +33,64 @@ export const ServiceOrdersWorkspace: React.FC = () => {
     } catch {}
   };
 
+  const loadTechnicians = async () => {
+    try {
+      const res = await apiClient.listTechnicians();
+      setTechnicians(res.data);
+      if (res.data.length > 0) setSelectedTechId(res.data[0].id);
+    } catch {}
+  };
+
+  const loadSubscribers = async () => {
+    try {
+      const res = await apiClient.listSubscribers({ limit: 100 });
+      setSubscribers(res.data);
+    } catch {}
+  };
+
   useEffect(() => {
     loadOrders();
+    loadTechnicians();
+    loadSubscribers();
   }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isDetailModalOpen) setIsDetailModalOpen(false);
+        if (isNewOrderModalOpen) setIsNewOrderModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isDetailModalOpen, isNewOrderModalOpen]);
 
   const handleStatusChange = async (orderId: string, nextStatus: string) => {
     try {
-      await apiClient.updateServiceOrderStatus(orderId, nextStatus, resolutionNotes || undefined);
+      if (nextStatus === 'COMPLETED') {
+        if (!resolutionNotes.trim()) {
+          alert('Please enter Field Resolution Notes before completing the order.');
+          return;
+        }
+        await apiClient.completeServiceOrder(orderId, resolutionNotes);
+      } else if (nextStatus === 'CANCELLED') {
+        await apiClient.cancelServiceOrder(orderId, 'Cancelled by dispatcher');
+      } else if (nextStatus === 'ASSIGNED') {
+        // Dispatch: assign tech first, which will auto-transition to ASSIGNED
+        if (!selectedTechId) {
+          alert('Please select a technician before dispatching.');
+          return;
+        }
+        await apiClient.assignTechnician(orderId, selectedTechId);
+      } else if (nextStatus === 'IN_PROGRESS') {
+        // Ensure tech is assigned (re-assign if changed), then transition
+        if (selectedTechId && selectedTechId !== selectedOrder?.assignedTechnicianId) {
+          await apiClient.assignTechnician(orderId, selectedTechId);
+        }
+        await apiClient.updateServiceOrderStatus(orderId, nextStatus);
+      } else {
+        await apiClient.updateServiceOrderStatus(orderId, nextStatus);
+      }
       setIsDetailModalOpen(false);
       loadOrders();
     } catch (err: any) {
@@ -43,15 +98,61 @@ export const ServiceOrdersWorkspace: React.FC = () => {
     }
   };
 
+  const openCreateModal = () => {
+    const defaultSub = subscribers.find((s) => s.serviceAccounts && s.serviceAccounts.length > 0) || subscribers[0];
+    const defaultSa = defaultSub?.serviceAccounts?.[0]?.id || '';
+    setNewOrder({
+      orderType: 'INSTALLATION',
+      priority: 'NORMAL',
+      subscriberId: defaultSub?.id || '',
+      serviceAccountId: defaultSa,
+      assignedTechnicianId: '',
+      scheduledDate: new Date().toISOString().split('T')[0],
+      description: '',
+      feeStr: '1500.00',
+    });
+    setIsNewOrderModalOpen(true);
+  };
+
+  const handleSubscriberChange = (subId: string) => {
+    const sub = subscribers.find((s) => s.id === subId);
+    const firstSaId = sub?.serviceAccounts?.[0]?.id || '';
+    setNewOrder((prev) => ({
+      ...prev,
+      subscriberId: subId,
+      serviceAccountId: firstSaId,
+    }));
+  };
+
+  const handleOrderTypeChange = (type: string) => {
+    let defaultFee = '0.00';
+    if (type === 'INSTALLATION') defaultFee = '1500.00';
+    else if (type === 'RECONNECTION') defaultFee = '500.00';
+    setNewOrder((prev) => ({
+      ...prev,
+      orderType: type,
+      feeStr: ['1500.00', '0.00', '500.00'].includes(prev.feeStr) ? defaultFee : prev.feeStr,
+    }));
+  };
+
   const handleCreateOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!newOrder.serviceAccountId) {
+      alert('Please select a subscriber and service account.');
+      return;
+    }
+    if (!newOrder.description.trim() || newOrder.description.trim().length < 3) {
+      alert('Work description must be at least 3 characters.');
+      return;
+    }
     try {
       await apiClient.createServiceOrder({
+        serviceAccountId: newOrder.serviceAccountId,
         orderType: newOrder.orderType,
         priority: newOrder.priority,
-        subscriberId: newOrder.subscriberId,
-        serviceAccountId: newOrder.serviceAccountId,
-        description: newOrder.description,
+        description: newOrder.description.trim(),
+        assignedTechnicianId: newOrder.assignedTechnicianId || undefined,
+        scheduledDate: newOrder.scheduledDate || undefined,
         feeCentavos: parseCurrencyToCentavos(newOrder.feeStr || '0'),
       });
       setIsNewOrderModalOpen(false);
@@ -83,11 +184,11 @@ export const ServiceOrdersWorkspace: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', flex: 1, overflowY: 'auto' }}>
+    <div className="workspace-animate-enter" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', flex: 1, overflowY: 'auto' }}>
       {/* Header Controls */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: 600 }}>Field Service Orders & Technician Queue</h2>
+          <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>Field Service Orders & Technician Queue</h2>
           <div style={{ display: 'flex', gap: '6px' }}>
             {['ALL', 'INSTALLATION', 'REPAIR', 'DISCONNECTION', 'RECONNECTION'].map((type) => (
               <button
@@ -96,13 +197,13 @@ export const ServiceOrdersWorkspace: React.FC = () => {
                 onClick={() => setSelectedTypeFilter(type)}
                 className="pressable"
                 style={{
-                  padding: '4px 10px',
+                  padding: '5px 11px',
                   borderRadius: '6px',
                   fontSize: '11px',
-                  fontWeight: selectedTypeFilter === type ? 600 : 400,
-                  border: selectedTypeFilter === type ? '1px solid #0071E3' : '1px solid var(--border-subtle)',
-                  backgroundColor: selectedTypeFilter === type ? '#EFF6FF' : '#FFFFFF',
-                  color: selectedTypeFilter === type ? '#0071E3' : 'var(--text-secondary)',
+                  fontWeight: selectedTypeFilter === type ? 700 : 500,
+                  border: selectedTypeFilter === type ? '1.5px solid #2C5745' : '1px solid var(--border-subtle)',
+                  backgroundColor: selectedTypeFilter === type ? 'rgba(44, 87, 69, 0.09)' : '#FFFFFF',
+                  color: selectedTypeFilter === type ? '#2C5745' : 'var(--text-secondary)',
                 }}
               >
                 {type}
@@ -113,7 +214,7 @@ export const ServiceOrdersWorkspace: React.FC = () => {
 
         <button
           type="button"
-          onClick={() => setIsNewOrderModalOpen(true)}
+          onClick={openCreateModal}
           className="btn-primary"
           style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
         >
@@ -130,13 +231,13 @@ export const ServiceOrdersWorkspace: React.FC = () => {
             <div
               key={col.id}
               style={{
-                backgroundColor: '#F1F5F9',
-                borderRadius: '10px',
+                backgroundColor: 'var(--bg-subtle)',
+                borderRadius: '11px',
                 padding: '14px',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '12px',
-                border: '1px solid rgba(0, 0, 0, 0.05)',
+                border: '1px solid var(--border-subtle)',
               }}
             >
               {/* Column Header */}
@@ -157,6 +258,8 @@ export const ServiceOrdersWorkspace: React.FC = () => {
                     onClick={() => {
                       setSelectedOrder(order);
                       setResolutionNotes(order.resolutionNotes || '');
+                      // Pre-select the currently assigned tech, or fall back to first available
+                      setSelectedTechId(order.assignedTechnicianId || (technicians[0]?.id ?? ''));
                       setIsDetailModalOpen(true);
                     }}
                     className="apple-card pressable"
@@ -215,8 +318,8 @@ export const ServiceOrdersWorkspace: React.FC = () => {
           style={{
             position: 'fixed',
             inset: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.6)',
-            backdropFilter: 'blur(8px)',
+            backgroundColor: 'rgba(46, 41, 16, 0.72)',
+            backdropFilter: 'blur(10px)',
             zIndex: 1000,
             display: 'flex',
             alignItems: 'center',
@@ -273,13 +376,16 @@ export const ServiceOrdersWorkspace: React.FC = () => {
                   Assign Field Technician
                 </label>
                 <select
-                  value={assignedTechName}
-                  onChange={(e) => setAssignedTechName(e.target.value)}
+                  value={selectedTechId}
+                  onChange={(e) => setSelectedTechId(e.target.value)}
                   className="apple-input"
                 >
-                  <option value="Tech Noel">Tech Noel (Lineman - North)</option>
-                  <option value="Tech Mark">Tech Mark (Fiber Splicer)</option>
-                  <option value="Tech Dennis">Tech Dennis (Installer)</option>
+                  {technicians.length === 0 && (
+                    <option value="">No technicians available</option>
+                  )}
+                  {technicians.map((tech) => (
+                    <option key={tech.id} value={tech.id}>{tech.fullName}</option>
+                  ))}
                 </select>
               </div>
 
@@ -352,8 +458,8 @@ export const ServiceOrdersWorkspace: React.FC = () => {
           style={{
             position: 'fixed',
             inset: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.6)',
-            backdropFilter: 'blur(8px)',
+            backgroundColor: 'rgba(46, 41, 16, 0.72)',
+            backdropFilter: 'blur(10px)',
             zIndex: 1000,
             display: 'flex',
             alignItems: 'center',
@@ -361,9 +467,12 @@ export const ServiceOrdersWorkspace: React.FC = () => {
             padding: '20px',
           }}
         >
-          <div className="glass-modal modal-animate-enter" style={{ width: '480px', backgroundColor: '#FFFFFF', overflow: 'hidden' }}>
+          <div className="glass-modal modal-animate-enter" style={{ width: '540px', maxHeight: '90vh', backgroundColor: '#FFFFFF', overflowY: 'auto', borderRadius: '12px' }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: 600 }}>Create Service Order</h3>
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>Create Service Order</h3>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Dispatch field technician or schedule maintenance</span>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsNewOrderModalOpen(false)}
@@ -374,6 +483,70 @@ export const ServiceOrdersWorkspace: React.FC = () => {
               </button>
             </div>
             <form onSubmit={handleCreateOrder} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {/* Subscriber Selector */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                  Subscriber Account *
+                </label>
+                <select
+                  required
+                  value={newOrder.subscriberId}
+                  onChange={(e) => handleSubscriberChange(e.target.value)}
+                  className="apple-input"
+                >
+                  <option value="">-- Select Subscriber --</option>
+                  {subscribers.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      [{s.accountNumber}] {s.firstName} {s.lastName} {s.businessName ? `(${s.businessName})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Service Account Selector */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                  Target Service Account *
+                </label>
+                {(() => {
+                  const currentSub = subscribers.find((s) => s.id === newOrder.subscriberId);
+                  const accounts = currentSub?.serviceAccounts || [];
+
+                  if (!newOrder.subscriberId) {
+                    return (
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', backgroundColor: 'var(--bg-subtle)', padding: '10px 12px', borderRadius: '6px' }}>
+                        Please select a subscriber above to choose their service account.
+                      </div>
+                    );
+                  }
+
+                  if (accounts.length === 0) {
+                    return (
+                      <div style={{ fontSize: '12px', color: '#B91C1C', backgroundColor: '#FEF2F2', padding: '10px 12px', borderRadius: '6px', border: '1px solid #FCA5A5' }}>
+                        This subscriber does not have any active service accounts provisioned yet. Please provision a service account under Billing &amp; Admin first.
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <select
+                      required
+                      value={newOrder.serviceAccountId}
+                      onChange={(e) => setNewOrder({ ...newOrder, serviceAccountId: e.target.value })}
+                      className="apple-input"
+                    >
+                      <option value="">-- Select Service Account --</option>
+                      {accounts.map((acc) => (
+                        <option key={acc.id} value={acc.id}>
+                          {acc.accountNumber} • {acc.planName || acc.serviceType} ({acc.serviceType}) — [{acc.status}]
+                        </option>
+                      ))}
+                    </select>
+                  );
+                })()}
+              </div>
+
+              {/* Order Type & Priority Grid */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
@@ -381,7 +554,7 @@ export const ServiceOrdersWorkspace: React.FC = () => {
                   </label>
                   <select
                     value={newOrder.orderType}
-                    onChange={(e) => setNewOrder({ ...newOrder, orderType: e.target.value })}
+                    onChange={(e) => handleOrderTypeChange(e.target.value)}
                     className="apple-input"
                   >
                     <option value="INSTALLATION">Installation</option>
@@ -406,9 +579,41 @@ export const ServiceOrdersWorkspace: React.FC = () => {
                 </div>
               </div>
 
+              {/* Assigned Tech & Scheduled Date Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    Assigned Technician
+                  </label>
+                  <select
+                    value={newOrder.assignedTechnicianId}
+                    onChange={(e) => setNewOrder({ ...newOrder, assignedTechnicianId: e.target.value })}
+                    className="apple-input"
+                  >
+                    <option value="">-- Unassigned (Pending) --</option>
+                    {technicians.map((t) => (
+                      <option key={t.id} value={t.id}>{t.fullName}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    Scheduled Date
+                  </label>
+                  <input
+                    type="date"
+                    value={newOrder.scheduledDate}
+                    onChange={(e) => setNewOrder({ ...newOrder, scheduledDate: e.target.value })}
+                    className="apple-input"
+                  >
+                  </input>
+                </div>
+              </div>
+
+              {/* Work Description */}
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                  Work Description & Location Notes
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                  Work Description &amp; Location Notes *
                 </label>
                 <textarea
                   required
@@ -420,13 +625,15 @@ export const ServiceOrdersWorkspace: React.FC = () => {
                 />
               </div>
 
+              {/* Service Fee */}
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
                   Service Fee (PHP)
                 </label>
                 <input
                   type="number"
                   step="0.01"
+                  min="0"
                   value={newOrder.feeStr}
                   onChange={(e) => setNewOrder({ ...newOrder, feeStr: e.target.value })}
                   className="apple-input tabular-nums"
@@ -437,7 +644,15 @@ export const ServiceOrdersWorkspace: React.FC = () => {
                 <button type="button" onClick={() => setIsNewOrderModalOpen(false)} className="btn-secondary">
                   Cancel
                 </button>
-                <button type="submit" className="btn-primary">
+                <button
+                  type="submit"
+                  disabled={!newOrder.serviceAccountId || !newOrder.description.trim()}
+                  className="btn-primary"
+                  style={{
+                    opacity: !newOrder.serviceAccountId || !newOrder.description.trim() ? 0.6 : 1,
+                    cursor: !newOrder.serviceAccountId || !newOrder.description.trim() ? 'not-allowed' : 'pointer',
+                  }}
+                >
                   Dispatch Order
                 </button>
               </div>

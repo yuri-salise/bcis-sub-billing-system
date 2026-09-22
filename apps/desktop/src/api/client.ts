@@ -50,7 +50,13 @@ function normalizeSubscriber(raw: any): SubscriberRecord {
     currentBalanceCentavos: balance,
     advancePaymentCentavos: advance,
     advanceCreditCentavos: advance,
-    serviceAccounts: raw.serviceAccounts || [],
+    serviceAccounts: Array.isArray(raw.serviceAccounts)
+      ? raw.serviceAccounts.map((acc: any) => ({
+          ...acc,
+          serviceType: acc.serviceType || 'INTERNET',
+          monthlyFeeCentavos: acc.monthlyFeeCentavos ?? acc.currentRateCentavos ?? acc.monthlyRecurringCentavos ?? 0,
+        }))
+      : [],
     primaryAddress: {
       addressLine1: street,
       streetAddress: street,
@@ -274,7 +280,14 @@ class ApiClient {
       } catch {
         errBody = { message: res.statusText };
       }
-      const err = new Error(errBody.message || `Request failed with status ${res.status}`) as Error & {
+      let message = errBody.message || `Request failed with status ${res.status}`;
+      if (Array.isArray(errBody.details) && errBody.details.length > 0) {
+        const detailStr = errBody.details
+          .map((d: any) => (d.field && d.issue ? `${d.field}: ${d.issue}` : (d.issue || JSON.stringify(d))))
+          .join('; ');
+        message = `${message} (${detailStr})`;
+      }
+      const err = new Error(message) as Error & {
         statusCode: number;
         code?: string;
         details?: any;
@@ -438,7 +451,11 @@ class ApiClient {
             s.firstName.toLowerCase().includes(q) ||
             s.lastName.toLowerCase().includes(q) ||
             s.accountNumber.toLowerCase().includes(q) ||
-            s.phone.includes(q)
+            s.phone.includes(q) ||
+            s.primaryAddress?.barangay?.toLowerCase().includes(q) ||
+            s.primaryAddress?.municipality?.toLowerCase().includes(q) ||
+            s.primaryAddress?.city?.toLowerCase().includes(q) ||
+            s.primaryAddress?.streetAddress?.toLowerCase().includes(q)
         );
       }
       if (params?.status) {
@@ -851,6 +868,20 @@ class ApiClient {
     }
   }
 
+  public async listTechnicians(): Promise<{ data: Array<{ id: string; username: string; fullName: string }> }> {
+    try {
+      return await this.request('/api/v1/users');
+    } catch {
+      return {
+        data: [
+          { id: 'tech-noel-id', username: 'tech_noel', fullName: 'Tech Noel (Lineman - North)' },
+          { id: 'tech-mark-id', username: 'tech_mark', fullName: 'Tech Mark (Fiber Splicer)' },
+          { id: 'tech-dennis-id', username: 'tech_dennis', fullName: 'Tech Dennis (Installer)' },
+        ],
+      };
+    }
+  }
+
   // 8. Service Orders
   public async listServiceOrders(params?: { status?: string; orderType?: string }): Promise<{ data: ServiceOrderRecord[] }> {
     const q = new URLSearchParams();
@@ -858,7 +889,21 @@ class ApiClient {
     if (params?.orderType) q.set('orderType', params.orderType);
 
     try {
-      return await this.request(`/api/v1/service-orders?${q.toString()}`);
+      const res = await this.request<any>(`/api/v1/service-orders?${q.toString()}`);
+      const rawList = Array.isArray(res?.data) ? res.data : [];
+      const mapped: ServiceOrderRecord[] = rawList.map((o: any) => ({
+        ...o,
+        subscriberName:
+          (o.subscriber ? `${o.subscriber.firstName || ''} ${o.subscriber.lastName || ''}`.trim() : null) ||
+          o.subscriberName ||
+          'Subscriber',
+        assignedTechnicianName:
+          o.assignedTechnician?.fullName ||
+          o.tech?.fullName ||
+          o.assignedTechnicianName ||
+          null,
+      }));
+      return { data: mapped };
     } catch {
       return {
         data: [
@@ -909,10 +954,34 @@ class ApiClient {
   }
 
   public async createServiceOrder(data: any): Promise<{ data: ServiceOrderRecord }> {
-    return this.request('/api/v1/service-orders', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
+    try {
+      return await this.request('/api/v1/service-orders', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    } catch (err: any) {
+      // Re-throw validation or authorization client errors from server
+      if (err.statusCode && err.statusCode < 500) {
+        throw err;
+      }
+      // Demo/offline fallback if LAN server is unreachable
+      const newMock: ServiceOrderRecord = {
+        id: `so-mock-${Date.now()}`,
+        orderNumber: `SO-${new Date().toISOString().slice(0, 7).replace('-', '')}-${String(Math.floor(Math.random() * 9000) + 1000)}`,
+        orderType: data.orderType || 'INSTALLATION',
+        status: data.assignedTechnicianId ? 'ASSIGNED' : 'PENDING',
+        priority: data.priority || 'NORMAL',
+        subscriberId: data.subscriberId || 'sub-001',
+        subscriberName: 'Subscriber',
+        serviceAccountId: data.serviceAccountId || 'acc-001',
+        assignedTechnicianId: data.assignedTechnicianId || null,
+        scheduledDate: data.scheduledDate || null,
+        description: data.description,
+        feeCentavos: data.feeCentavos || 0,
+        createdAt: new Date().toISOString(),
+      };
+      return { data: newMock };
+    }
   }
 
   public async assignTechnician(orderId: string, technicianId: string): Promise<any> {
@@ -922,10 +991,24 @@ class ApiClient {
     });
   }
 
-  public async updateServiceOrderStatus(orderId: string, status: string, resolutionNotes?: string): Promise<any> {
+  public async updateServiceOrderStatus(orderId: string, status: string, reason?: string): Promise<any> {
     return this.request(`/api/v1/service-orders/${orderId}/status`, {
       method: 'POST',
-      body: JSON.stringify({ status, resolutionNotes }),
+      body: JSON.stringify({ status, reason }),
+    });
+  }
+
+  public async completeServiceOrder(orderId: string, resolutionNotes: string): Promise<any> {
+    return this.request(`/api/v1/service-orders/${orderId}/complete`, {
+      method: 'POST',
+      body: JSON.stringify({ resolutionNotes }),
+    });
+  }
+
+  public async cancelServiceOrder(orderId: string, reason: string): Promise<any> {
+    return this.request(`/api/v1/service-orders/${orderId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
     });
   }
 

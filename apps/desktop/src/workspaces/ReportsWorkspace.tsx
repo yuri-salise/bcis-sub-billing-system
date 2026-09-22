@@ -66,21 +66,21 @@ export const ReportsWorkspace: React.FC = () => {
 
   const getBucketColor = (index: number) => {
     switch (index) {
-      case 0: return '#10B981'; // Current (green)
-      case 1: return '#3B82F6'; // 31-60 (blue)
-      case 2: return '#F59E0B'; // 61-90 (amber)
-      case 3: return '#F97316'; // 91-120 (orange)
-      case 4: return '#EF4444'; // >120 (red)
-      default: return '#64748B';
+      case 0: return '#2C5745'; // Current (Evergreen Pine)
+      case 1: return '#736C52'; // 31-60 (Warm Olive Timber)
+      case 2: return '#EB7D00'; // 61-90 (Warm Amber)
+      case 3: return '#EA580C'; // 91-120 (Orange)
+      case 4: return '#DC2626'; // >120 (Red)
+      default: return '#6E684F';
     }
   };
 
   return (
-    <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px', flex: 1, overflowY: 'auto' }}>
+    <div className="workspace-animate-enter" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px', flex: 1, overflowY: 'auto' }}>
       {/* Top Header & CSV Export Actions */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h2 style={{ fontSize: '18px', fontWeight: 600 }}>Financial Reports & Delinquency Explorer</h2>
+          <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>Financial Reports & Delinquency Explorer</h2>
           <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
             Accounts Receivable Aging Analysis & Daily Collection Reconciliation
           </div>
@@ -111,10 +111,10 @@ export const ReportsWorkspace: React.FC = () => {
             type="button"
             onClick={() => handleExportCsv('delinquent-receivables')}
             disabled={isExporting !== null}
-            className="btn-primary"
+            className="btn-accent"
             style={{ fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
           >
-            <IconFileSpreadsheet size={14} strokeWidth={1.8} />
+            <IconFileSpreadsheet size={14} strokeWidth={2} />
             <span>{isExporting === 'delinquent-receivables' ? 'Exporting...' : 'Export Delinquency List (CSV)'}</span>
           </button>
         </div>
@@ -224,19 +224,19 @@ export const ReportsWorkspace: React.FC = () => {
               const methodConfig: Record<string, { label: string; icon: React.ReactNode }> = {
                 CASH: {
                   label: 'Cash Tendered',
-                  icon: <IconBanknote size={14} strokeWidth={2} style={{ color: '#059669' }} />,
+                  icon: <IconBanknote size={14} strokeWidth={2} style={{ color: '#2C5745' }} />,
                 },
                 GCASH: {
                   label: 'GCash Digital',
-                  icon: <IconSmartphone size={14} strokeWidth={2} style={{ color: '#0071E3' }} />,
+                  icon: <IconSmartphone size={14} strokeWidth={2} style={{ color: '#EB7D00' }} />,
                 },
                 BANK_TRANSFER: {
                   label: 'Bank Transfer',
-                  icon: <IconBuilding size={14} strokeWidth={2} style={{ color: '#7C3AED' }} />,
+                  icon: <IconBuilding size={14} strokeWidth={2} style={{ color: '#4A442E' }} />,
                 },
                 CHECK: {
                   label: 'Checks Received',
-                  icon: <IconReceipt size={14} strokeWidth={2} style={{ color: '#D97706' }} />,
+                  icon: <IconReceipt size={14} strokeWidth={2} style={{ color: '#EB7D00' }} />,
                 },
               };
               const config = methodConfig[m] || { label: m, icon: null };
@@ -246,7 +246,7 @@ export const ReportsWorkspace: React.FC = () => {
                   style={{
                     padding: '12px 14px',
                     borderRadius: '8px',
-                    backgroundColor: '#F8FAFC',
+                    backgroundColor: 'var(--bg-subtle)',
                     border: '1px solid var(--border-subtle)',
                   }}
                 >
@@ -255,7 +255,7 @@ export const ReportsWorkspace: React.FC = () => {
                     <span>{config.label}</span>
                   </div>
                   <div className="tabular-nums font-bold" style={{ fontSize: '15px', color: 'var(--text-primary)', marginTop: '4px' }}>
-                    {formatCurrency(methodData.totalCentavos)}
+                    {formatCurrency(methodData?.totalCentavos ?? 0)}
                   </div>
                   <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', marginTop: '2px' }}>
                     {methodData.count} transaction{methodData.count !== 1 ? 's' : ''}
@@ -269,7 +269,7 @@ export const ReportsWorkspace: React.FC = () => {
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-tertiary)', textAlign: 'left' }}>
+              <tr style={{ borderBottom: '1px solid var(--border-strong)', color: 'var(--text-muted)', textAlign: 'left' }}>
                 <th style={{ padding: '8px 6px' }}>Time</th>
                 <th style={{ padding: '8px 6px' }}>Receipt (OR) No.</th>
                 <th style={{ padding: '8px 6px' }}>Payment Ref</th>
@@ -282,7 +282,7 @@ export const ReportsWorkspace: React.FC = () => {
             <tbody>
               {dailyCollections.length > 0 ? (
                 dailyCollections.map((item, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                  <tr key={idx} className="table-row-hover" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                     <td style={{ padding: '10px 6px', color: 'var(--text-muted)' }} className="font-mono">
                       {item.time}
                     </td>
@@ -292,7 +292,7 @@ export const ReportsWorkspace: React.FC = () => {
                     <td style={{ padding: '10px 6px', color: 'var(--text-secondary)' }} className="font-mono">
                       {item.paymentNumber}
                     </td>
-                    <td style={{ padding: '10px 6px', fontWeight: 500 }}>
+                    <td style={{ padding: '10px 6px', fontWeight: 600, color: 'var(--text-primary)' }}>
                       {item.subscriberName}
                     </td>
                     <td style={{ padding: '10px 6px' }}>
@@ -302,10 +302,10 @@ export const ReportsWorkspace: React.FC = () => {
                       {item.cashierName}
                     </td>
                     <td
-                      style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 600, color: '#059669' }}
+                      style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 700, color: 'var(--pine)' }}
                       className="tabular-nums"
                     >
-                      {formatCurrency(item.amountCentavos)}
+                      {formatCurrency(item?.amountCentavos ?? 0)}
                     </td>
                   </tr>
                 ))
