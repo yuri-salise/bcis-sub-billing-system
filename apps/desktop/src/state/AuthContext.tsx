@@ -53,28 +53,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
-      // Automatically authenticate default cashier session
-      try {
-        const loginRes = await apiClient.login('cashier', 'Cashier123!');
-        setToken(loginRes.token);
-        setUser(loginRes.user);
-        if (loginRes.user.roles.length > 0) {
-          setActiveRole(loginRes.user.roles[0]);
-        }
-        if (typeof window !== 'undefined' && window.api) {
-          await window.api.storage.setToken(loginRes.token).catch(() => {});
-        }
-      } catch {
-        const demoUser: UserProfile = {
-          id: 'local-cashier',
-          username: 'cashier',
-          fullName: 'Maria Santos (Cashier Counter 1)',
-          roles: [UserRole.CASHIER],
-          permissions: ['subscriber.view', 'service_account.view', 'billing.view', 'payment.create', 'receipt.view', 'receipt.reprint'],
-        };
-        setUser(demoUser);
-        setActiveRole(UserRole.CASHIER);
-      }
+      // No valid token, remain logged out
+      setToken(null);
+      setUser(null);
     };
 
     initAuth();
@@ -142,25 +123,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const target = testCreds[role] || { username: 'cashier', pass: 'Cashier123!' };
-    try {
       const result = await apiClient.login(target.username, target.pass);
       setToken(result.token);
       setUser(result.user);
       if (result.user.roles.length > 0) {
         setActiveRole(role);
       }
-    } catch {
-      // In case of offline demo or unexpected login error, construct mock profile directly
-      const fallbackUser: UserProfile = {
-        id: `mock-${target.username}-id`,
-        username: target.username,
-        fullName: getRoleDisplayName(role),
-        roles: [role],
-        permissions: role === UserRole.SUPER_ADMIN ? ['*'] : [],
-      };
-      setUser(fallbackUser);
-      setActiveRole(role);
-    }
   };
 
   const handleSetActiveRole = (role: UserRole) => {

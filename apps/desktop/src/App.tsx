@@ -114,11 +114,21 @@ const MainLayout: React.FC = () => {
   );
 };
 
+import { LoginView } from './components/LoginView.js';
+
+const AuthGuard: React.FC = () => {
+  const { isAuthenticated } = useAuth();
+  if (!isAuthenticated) {
+    return <LoginView />;
+  }
+  return <MainLayout />;
+};
+
 export const App: React.FC = () => {
   return (
     <ConfigProvider>
       <AuthProvider>
-        <MainLayout />
+        <AuthGuard />
       </AuthProvider>
     </ConfigProvider>
   );
