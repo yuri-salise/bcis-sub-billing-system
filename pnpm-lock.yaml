@@ -15,7 +15,7 @@ importers:
         specifier: ^3.0.7
         version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.2)(supports-color@7.2.0)(tsx@4.23.13)
 
-  apps/api:
+  apps/backend:
     dependencies:
       '@bcis/domain':
         specifier: workspace:*
@@ -79,7 +79,7 @@ importers:
         specifier: ^3.0.7
         version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.2)(supports-color@7.2.0)(tsx@4.23.13)
 
-  apps/desktop:
+  apps/frontend:
     dependencies:
       '@bcis/domain':
         specifier: workspace:*

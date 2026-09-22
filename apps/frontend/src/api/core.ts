@@ -40,7 +40,7 @@ export class ApiCore {
   }
 
   public async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const url = `${this.baseUrl}${endpoint.startsWith('/') ? endpoint : \`/\${endpoint}\`}`;
+    const url = `${this.baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       Accept: 'application/json',

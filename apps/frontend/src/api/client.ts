@@ -10,8 +10,8 @@ import * as system from './system.js';
 import { apiCore } from './core.js';
 
 export const apiClient = {
-  setToken: (token) => apiCore.setToken(token),
-  setBaseUrl: (url) => apiCore.setBaseUrl(url),
+  setToken: (token: string | null) => apiCore.setToken(token),
+  setBaseUrl: (url: string) => apiCore.setBaseUrl(url),
   getBaseUrl: () => apiCore.getBaseUrl(),
   ...auth,
   ...subscribers,
